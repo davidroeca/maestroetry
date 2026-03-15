@@ -1,11 +1,16 @@
 """Projection heads and contrastive model."""
 
 from __future__ import annotations
+from collections import OrderedDict
 
 from typing import TYPE_CHECKING
 
+import torch
 import torch.nn as nn
 from torch import Tensor
+import torch.nn.functional as F
+
+from maestroetry import encoders
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
@@ -25,7 +30,15 @@ class ProjectionHead(nn.Module):
         self, d_in: int, d_hidden: int = 512, d_out: int = 256
     ) -> None:
         super().__init__()
-        raise NotImplementedError
+        self.net = nn.Sequential(
+            OrderedDict(
+                [
+                    ("linear1", nn.Linear(d_in, d_hidden)),
+                    ("relu", nn.ReLU()),
+                    ("linear2", nn.Linear(d_hidden, d_out)),
+                ]
+            )
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         """Project and L2-normalize.
@@ -36,7 +49,8 @@ class ProjectionHead(nn.Module):
         Returns:
             ``(N, d_out)`` unit-normalized embeddings.
         """
-        raise NotImplementedError
+        forward_pass = self.net(x)
+        return F.normalize(forward_pass, dim=-1)
 
 
 class ContrastiveModel(nn.Module):
@@ -58,7 +72,20 @@ class ContrastiveModel(nn.Module):
         temperature_init: float = 0.07,
     ) -> None:
         super().__init__()
-        raise NotImplementedError
+        self.text_encoder = text_encoder
+        self.audio_encoder = audio_encoder
+        self.audio_extractor = audio_extractor
+        self.temperature = nn.Parameter(torch.tensor(temperature_init))
+        self.text_projection_head = ProjectionHead(
+            d_in=text_embed_dim,
+            d_hidden=projection_hidden,
+            d_out=projection_out,
+        )
+        self.audio_projection_head = ProjectionHead(
+            d_in=audio_embed_dim,
+            d_hidden=projection_hidden,
+            d_out=projection_out,
+        )
 
     def forward(
         self,
@@ -76,7 +103,15 @@ class ContrastiveModel(nn.Module):
             embeds are ``(N, projection_out)`` and temperature
             is a positive scalar tensor.
         """
-        raise NotImplementedError
+        text_embeds = encoders.encode_text(self.text_encoder, texts)
+        audio_embeds = encoders.encode_audio(
+            self.audio_encoder,
+            self.audio_extractor,
+            spectrograms,
+        )
+        text_embeds = self.text_projection_head(text_embeds)
+        audio_embeds = self.audio_projection_head(audio_embeds)
+        return text_embeds, audio_embeds, self.temperature
 
 
 def get_trainable_params(
@@ -87,4 +122,4 @@ def get_trainable_params(
     This includes projection head weights and the temperature
     parameter, not the frozen encoder weights.
     """
-    raise NotImplementedError
+    return [p for p in model.parameters() if p.requires_grad]
