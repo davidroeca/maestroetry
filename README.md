@@ -19,6 +19,8 @@ Audio is preprocessed in `dataset.py`. `audio_to_mel_spectrogram` loads a file w
 
 Training is implemented in `train.py`. `train_one_epoch` runs a standard gradient update loop: move spectrograms to device, call `model.forward`, compute InfoNCE loss, backpropagate, and step both optimizer and scheduler. It returns the mean loss over the epoch. `train` wires everything together from a `TrainConfig`: loads encoders, builds `ContrastiveModel`, constructs an `AudioTextDataset` and `DataLoader`, sets up an AdamW optimizer with a linear warmup scheduler via `LinearLR`, and logs per-epoch loss to TensorBoard via `SummaryWriter`.
 
+Retrieval evaluation is implemented in `evaluate.py`. `recall_at_k` takes `(N, D)` L2-normalized text and audio embeddings, computes the full `(N, N)` cosine similarity matrix, and ranks candidates for each query via `torch.argsort`. For each k in `k_values` (default `[1, 5, 10]`), it checks whether the correct match appears in the top-k results and averages over all queries. Returns a dict with keys like `t2a_R@1`, `t2a_R@5`, `a2t_R@1`, etc.
+
 Training uses **InfoNCE loss**: for a batch of N paired (text, audio) embeddings, the model computes an NxN cosine similarity matrix (via `text_embeds @ audio_embeds.T`, which equals cosine similarity because both are L2-normalized). The matrix is scaled by `1/temperature` to produce logits. Two cross-entropy terms are computed: one row-wise (each text finds its audio match among N options) and one column-wise (each audio finds its text match). The diagonal of the matrix is the target in both directions. The final loss is their average. Off-diagonal entries act as in-batch negatives, so larger batch sizes produce harder training signal.
 
 ## Getting started
@@ -56,14 +58,6 @@ uv run python main.py train configs/default.toml
 ```
 
 You'll need a CSV manifest at `data/manifest.csv` with `audio_path` and `text` columns pointing to your (audio, text) pairs.
-
-## What you'll implement
-
-The stubs in `src/maestroetry/` are ready to fill in:
-
-- **`evaluate.py`**: Recall@k for text-to-audio and audio-to-text retrieval
-
-`config.py` is already implemented: a frozen dataclass with TOML file loading.
 
 ## Hyperparameters
 
