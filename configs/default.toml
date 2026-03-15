@@ -14,6 +14,7 @@ learning_rate = 3e-4
 weight_decay = 0.01
 warmup_steps = 100
 num_epochs = 20
+eval_interval = 5
 grad_accumulation_steps = 1
 
 # Audio preprocessing

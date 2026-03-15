@@ -33,6 +33,7 @@ class TrainConfig:
     weight_decay: float = 0.01
     warmup_steps: int = 100
     num_epochs: int = 20
+    eval_interval: int = 5
     grad_accumulation_steps: int = 1
 
     # Audio preprocessing

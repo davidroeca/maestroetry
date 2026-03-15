@@ -158,6 +158,9 @@ def train(config: TrainConfig) -> None:
             device=config.device,
         )
         writer.add_scalar("loss/train", loss, epoch)
-        for key, val in _eval_recall(model, dataloader, config.device).items():
-            writer.add_scalar(f"metrics/{key}", val, epoch)
+        is_last = epoch == config.num_epochs - 1
+        if is_last or (epoch + 1) % config.eval_interval == 0:
+            metrics = _eval_recall(model, dataloader, config.device)
+            for key, val in metrics.items():
+                writer.add_scalar(f"metrics/{key}", val, epoch)
     writer.close()

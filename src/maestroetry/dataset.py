@@ -50,7 +50,8 @@ def audio_path_to_cache_location(
     audio_path: str | Path, cache_dir: str | Path
 ) -> Path:
     cache_dir = Path(cache_dir)
-    return cache_dir / f"{Path(audio_path).stem}.pt"
+    safe_name = str(Path(audio_path)).replace("/", "_").replace("\\", "_")
+    return cache_dir / f"{safe_name}.pt"
 
 
 def cache_spectrograms(
