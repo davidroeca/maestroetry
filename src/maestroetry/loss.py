@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import torch
 from torch import Tensor
+import torch.nn.functional as F
 
 
 def info_nce_loss(
@@ -36,4 +38,15 @@ def info_nce_loss(
     Returns:
         Scalar loss tensor (mean of both directions).
     """
-    raise NotImplementedError
+    cos_similarity = text_embeds @ audio_embeds.T
+    t2a_logits = cos_similarity / temperature
+    a2t_logits = t2a_logits.T
+    t2a_loss = F.cross_entropy(
+        t2a_logits,
+        torch.arange(t2a_logits.size(0), device=t2a_logits.device),
+    )
+    a2t_loss = F.cross_entropy(
+        a2t_logits,
+        torch.arange(a2t_logits.size(0), device=a2t_logits.device),
+    )
+    return (t2a_loss + a2t_loss) / 2

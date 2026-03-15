@@ -13,7 +13,7 @@ Two frozen pretrained encoders extract features from each modality:
 
 Two small trainable **projection heads** (Linear -> ReLU -> Linear -> L2 norm) map both encoder outputs into a shared 256-dimensional space. These are the only parameters that get trained.
 
-Training uses **InfoNCE loss**: for a batch of N paired (text, audio) examples, each sample serves as a negative for every other sample in the batch. The model learns to place matched pairs close together (high cosine similarity) and unmatched pairs far apart.
+Training uses **InfoNCE loss**: for a batch of N paired (text, audio) embeddings, the model computes an NxN cosine similarity matrix (via `text_embeds @ audio_embeds.T`, which equals cosine similarity because both are L2-normalized). The matrix is scaled by `1/temperature` to produce logits. Two cross-entropy terms are computed: one row-wise (each text finds its audio match among N options) and one column-wise (each audio finds its text match). The diagonal of the matrix is the target in both directions. The final loss is their average. Off-diagonal entries act as in-batch negatives, so larger batch sizes produce harder training signal.
 
 ## Getting started
 
@@ -55,7 +55,6 @@ You'll need a CSV manifest at `data/manifest.csv` with `audio_path` and `text` c
 
 The stubs in `src/maestroetry/` are ready to fill in:
 
-- **`loss.py`**: symmetric InfoNCE loss (text->audio + audio->text cross-entropy, averaged)
 - **`encoders.py`**: load and freeze HuggingFace models, extract embeddings
 - **`projection.py`**: `ProjectionHead` and `ContrastiveModel` as `nn.Module` subclasses
 - **`dataset.py`**: mel spectrogram conversion with librosa, caching, and a PyTorch `Dataset`
