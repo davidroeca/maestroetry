@@ -11,6 +11,8 @@ Two frozen pretrained encoders extract features from each modality:
 - **Text:** `all-MiniLM-L6-v2` (sentence-transformers), producing 384-dim embeddings
 - **Audio:** `MIT/ast-finetuned-audioset-10-10-0.4593` (Audio Spectrogram Transformer), processing mel spectrograms as image patches via ViT-style attention
 
+Two frozen pretrained **encoders** extract features from each modality and are loaded via `load_text_encoder` and `load_audio_encoder`. Both are set to eval mode with all parameters frozen. `encode_text` uses `SentenceTransformer.encode` to produce `(N, 384)` embeddings. `encode_audio` passes mel spectrograms directly to the AST model and extracts the CLS token from `last_hidden_state[:, 0, :]`, giving `(N, 768)` embeddings. Both encode functions run under `torch.no_grad()`.
+
 Two small trainable **projection heads** (Linear -> ReLU -> Linear -> L2 norm) map both encoder outputs into a shared 256-dimensional space. These are the only parameters that get trained.
 
 Training uses **InfoNCE loss**: for a batch of N paired (text, audio) embeddings, the model computes an NxN cosine similarity matrix (via `text_embeds @ audio_embeds.T`, which equals cosine similarity because both are L2-normalized). The matrix is scaled by `1/temperature` to produce logits. Two cross-entropy terms are computed: one row-wise (each text finds its audio match among N options) and one column-wise (each audio finds its text match). The diagonal of the matrix is the target in both directions. The final loss is their average. Off-diagonal entries act as in-batch negatives, so larger batch sizes produce harder training signal.
@@ -55,7 +57,6 @@ You'll need a CSV manifest at `data/manifest.csv` with `audio_path` and `text` c
 
 The stubs in `src/maestroetry/` are ready to fill in:
 
-- **`encoders.py`**: load and freeze HuggingFace models, extract embeddings
 - **`projection.py`**: `ProjectionHead` and `ContrastiveModel` as `nn.Module` subclasses
 - **`dataset.py`**: mel spectrogram conversion with librosa, caching, and a PyTorch `Dataset`
 - **`train.py`**: training loop with AdamW and linear warmup, plus TensorBoard logging
