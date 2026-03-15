@@ -19,6 +19,11 @@ behaviors:
   - name: contrastive_training
     given: a batch of N paired (text, audio) examples
     then: InfoNCE loss drives matched pairs to high cosine similarity and unmatched pairs apart
+  - name: ingest_musiccaps
+    given: a data directory and optional max_samples limit
+    then: downloads MusicCaps audio clips from YouTube via yt-dlp, trims them
+      to annotated segments with ffmpeg, and writes a manifest CSV compatible
+      with AudioTextDataset to data_dir/manifest.csv
 
 constraints:
   - Base encoders (text and audio) remain frozen during training
