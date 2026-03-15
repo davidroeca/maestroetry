@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
+import librosa
+import torch
 from torch import Tensor
 from torch.utils.data import Dataset
+
+AUDIO_EXTENSIONS = {
+    ".wav",
+    ".mp3",
+    ".flac",
+    ".ogg",
+}
 
 
 def audio_to_mel_spectrogram(
@@ -29,7 +39,18 @@ def audio_to_mel_spectrogram(
     Returns:
         ``(n_mels, time_frames)`` mel spectrogram tensor.
     """
-    raise NotImplementedError
+    audio, _ = librosa.load(path, sr=sr, mono=True)
+    max_samples = int(max_seconds * sr)
+    audio = audio[:max_samples]
+    mel = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=n_mels)
+    return torch.from_numpy(mel)
+
+
+def audio_path_to_cache_location(
+    audio_path: str | Path, cache_dir: str | Path
+) -> Path:
+    cache_dir = Path(cache_dir)
+    return cache_dir / f"{Path(audio_path).stem}.pt"
 
 
 def cache_spectrograms(
@@ -52,7 +73,27 @@ def cache_spectrograms(
         sr: Target sample rate.
         max_seconds: Maximum audio duration in seconds.
     """
-    raise NotImplementedError
+    cache_dir = Path(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    iter_audio_paths = (
+        f
+        for f in Path(audio_dir).rglob("*")
+        if f.is_file() and f.suffix in AUDIO_EXTENSIONS
+    )
+    for audio_path in iter_audio_paths:
+        spectrogram = audio_to_mel_spectrogram(
+            audio_path,
+            n_mels=n_mels,
+            sr=sr,
+            max_seconds=max_seconds,
+        )
+        torch.save(
+            spectrogram,
+            audio_path_to_cache_location(
+                audio_path=audio_path,
+                cache_dir=cache_dir,
+            ),
+        )
 
 
 class AudioTextDataset(Dataset[tuple[Tensor, str]]):
@@ -73,11 +114,23 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
         manifest_path: str | Path,
         cache_dir: str | Path,
     ) -> None:
-        raise NotImplementedError
+        with Path(manifest_path).open(mode="r", encoding="utf8") as manifest_f:
+            reader = csv.DictReader(manifest_f)
+            self.pairs = [
+                (
+                    audio_path_to_cache_location(
+                        audio_path=row["audio_path"], cache_dir=cache_dir
+                    ),
+                    row["text"],
+                )
+                for row in reader
+            ]
 
     def __len__(self) -> int:
-        raise NotImplementedError
+        return len(self.pairs)
 
-    def __getitem__(self, idx: int) -> tuple[Tensor, str]:
+    def __getitem__(self, idx) -> tuple[Tensor, str]:  # type: ignore[override]
         """Return (spectrogram, text) for the given index."""
-        raise NotImplementedError
+        cache_location, text = self.pairs[idx]
+        spectrogram = torch.load(cache_location, weights_only=True)
+        return spectrogram, text
