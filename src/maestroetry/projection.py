@@ -1,14 +1,14 @@
 """Projection heads and contrastive model."""
 
 from __future__ import annotations
-from collections import OrderedDict
 
+from collections import OrderedDict
 from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
-from torch import Tensor
 import torch.nn.functional as F
+from torch import Tensor
 
 from maestroetry import encoders
 

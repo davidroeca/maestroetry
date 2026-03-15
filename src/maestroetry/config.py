@@ -1,11 +1,11 @@
 """Training configuration dataclass and TOML loader."""
 
 from __future__ import annotations
-from typing import Literal
 
 import tomllib
 from dataclasses import dataclass, fields
 from pathlib import Path
+from typing import Literal
 
 import torch
 

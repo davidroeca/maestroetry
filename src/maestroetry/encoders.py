@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-
 import torch
-from torch import Tensor
-
 from sentence_transformers import SentenceTransformer
+from torch import Tensor
 from transformers import ASTFeatureExtractor, ASTModel
 
 

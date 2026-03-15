@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import torch
-from torch import Tensor
 import torch.nn.functional as F
+from torch import Tensor
 
 
 def info_nce_loss(
