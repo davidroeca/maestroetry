@@ -19,7 +19,9 @@ behaviors:
     given: a list of text strings and a frozen SentenceTransformer
     then: returns an (N, 384) tensor of text embeddings
   - name: encode_audio
-    given: mel spectrograms and a frozen AST model with feature extractor
+    given: mel spectrograms, a frozen AST model, and a feature extractor (accepted
+      for API forward-compatibility but currently bypassed; spectrograms are
+      pre-processed by the dataset pipeline and passed directly as input_values)
     then: returns an (N, embed_dim) tensor of audio embeddings
 
 constraints:

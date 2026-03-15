@@ -1,11 +1,11 @@
 """Training configuration dataclass and TOML loader."""
 
 from __future__ import annotations
-from typing import Literal
 
 import tomllib
 from dataclasses import dataclass, fields
 from pathlib import Path
+from typing import Literal
 
 import torch
 
@@ -45,8 +45,9 @@ class TrainConfig:
     cache_dir: str = "data/cache"
     log_dir: str = "runs"
 
-    # Device: "auto", "cuda", or "cpu"
-    device: Literal["auto", "cuda", "cpu"] = "auto"
+    # Device: "auto", "cuda", or "cpu" - "auto" allowed in file
+    # but not in-memory
+    device: Literal["cuda", "cpu"] = "cuda"
 
 
 def load_config(path: str | Path) -> TrainConfig:

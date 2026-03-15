@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+import torch
+from sentence_transformers import SentenceTransformer
 from torch import Tensor
-
-if TYPE_CHECKING:
-    from sentence_transformers import SentenceTransformer
-    from transformers import ASTFeatureExtractor, ASTModel
+from transformers import ASTFeatureExtractor, ASTModel
 
 
 def load_text_encoder(
@@ -29,7 +26,16 @@ def load_text_encoder(
         ``(model, embed_dim)``: the frozen encoder and its
         output dimensionality (384 for MiniLM).
     """
-    raise NotImplementedError
+    model = SentenceTransformer(name, device=device)
+    for parameter in model.parameters():
+        parameter.requires_grad = False
+    dimensionality = model.get_sentence_embedding_dimension()
+    if dimensionality is None:
+        raise ValueError(
+            f'get_sentence_embedding_dimension() returned None for model "{name}"'
+        )
+    model.eval()
+    return model, dimensionality
 
 
 def load_audio_encoder(
@@ -50,7 +56,13 @@ def load_audio_encoder(
         ``(model, feature_extractor, embed_dim)``: the frozen
         encoder, its preprocessor, and output dimensionality.
     """
-    raise NotImplementedError
+    extractor = ASTFeatureExtractor.from_pretrained(name)
+    model = ASTModel.from_pretrained(name)
+    model.to(device)  # type: ignore[invalid-argument-type]
+    for parameter in model.parameters():
+        parameter.requires_grad = False
+    model.eval()
+    return model, extractor, model.config.hidden_size
 
 
 def encode_text(
@@ -66,12 +78,14 @@ def encode_text(
     Returns:
         ``(N, embed_dim)`` tensor of text embeddings.
     """
-    raise NotImplementedError
+    # Redundant but explicit no_grad
+    with torch.no_grad():
+        return model.encode(texts, convert_to_tensor=True)
 
 
 def encode_audio(
     model: ASTModel,
-    extractor: ASTFeatureExtractor,
+    extractor: ASTFeatureExtractor,  # noqa: ARG001
     spectrograms: Tensor,
 ) -> Tensor:
     """Encode mel spectrograms into embeddings via AST.
@@ -85,4 +99,7 @@ def encode_audio(
     Returns:
         ``(N, embed_dim)`` tensor of audio embeddings.
     """
-    raise NotImplementedError
+    with torch.no_grad():
+        output = model(input_values=spectrograms)
+        cls_tokens = output.last_hidden_state[:, 0, :]
+        return cls_tokens
