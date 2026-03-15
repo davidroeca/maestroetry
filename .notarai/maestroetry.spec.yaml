@@ -1,0 +1,66 @@
+schema_version: "0.7"
+domain: research
+tier: full
+
+intent: |
+  Cross-modal contrastive text-audio retrieval system inspired by CLIP.
+  Aligns text (poems, lyrics, descriptions) and audio (songs, clips) in a
+  shared 256-dimensional embedding space using frozen pretrained encoders
+  and trainable projection heads with InfoNCE loss. Given a poem, find the
+  song that matches its mood; given a song, find the text that describes it.
+
+behaviors:
+  - name: text_to_audio_retrieval
+    given: a text query (poem, lyrics, or description) and a corpus of audio embeddings
+    then: returns audio items ranked by cosine similarity, with matched items ranked highest
+  - name: audio_to_text_retrieval
+    given: an audio query and a corpus of text embeddings
+    then: returns text items ranked by cosine similarity, with matched items ranked highest
+  - name: contrastive_training
+    given: a batch of N paired (text, audio) examples
+    then: InfoNCE loss drives matched pairs to high cosine similarity and unmatched pairs apart
+
+constraints:
+  - Base encoders (text and audio) remain frozen during training
+  - Shared embedding space is 256-dimensional with L2 normalization
+  - Must be trainable on a single consumer GPU or free Colab instance
+  - Projection heads are the only trainable components
+
+invariants:
+  - Matched text-audio pairs have higher cosine similarity than unmatched pairs after training
+  - All embeddings in the shared space are L2-normalized to unit length
+  - Frozen encoder weights are never modified during training
+
+decisions:
+  - date: "2026-03-14"
+    choice: Use frozen pretrained encoders with trainable projection heads only
+    rationale: >
+      Freezing pretrained encoders keeps compute requirements low,
+      focuses training on alignment, and avoids catastrophic forgetting.
+  - date: "2026-03-14"
+    choice: Symmetric InfoNCE loss with in-batch negatives
+    rationale: >
+      InfoNCE frames alignment as classification over batch negatives,
+      providing strong gradient signal without requiring a separate negative mining step.
+  - date: "2026-03-14"
+    choice: Learnable temperature parameter initialized at 0.07
+    rationale: >
+      Letting the model learn its own temperature allows it to find the
+      optimal softmax sharpness during training.
+
+artifacts:
+  code:
+    - path: "src/maestroetry/**/*.py"
+      role: primary implementation
+  tests:
+    - path: "tests/**/*.py"
+      role: unit and integration tests
+  configs:
+    - path: "configs/*.toml"
+      role: training hyperparameter configs
+
+subsystems:
+  - $ref: "./encoders.spec.yaml"
+  - $ref: "./projection.spec.yaml"
+  - $ref: "./data-pipeline.spec.yaml"
+  - $ref: "./training.spec.yaml"

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "notarai": {
+      "args": [
+        "mcp"
+      ],
+      "command": "notarai",
+      "type": "stdio"
+    }
+  }
+}

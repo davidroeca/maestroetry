@@ -1,0 +1,62 @@
+schema_version: "0.7"
+domain: research
+tier: full
+
+intent: |
+  Complete training pipeline: symmetric InfoNCE loss computing text->audio
+  and audio->text cross-entropy averaged together, training loop with AdamW
+  optimizer and linear warmup, and Recall@k evaluation metrics. Training
+  configuration is managed via a frozen dataclass with TOML file loading.
+
+behaviors:
+  - name: info_nce_loss
+    given: L2-normalized text and audio embeddings of shape (N, D) and a temperature scalar
+    then: returns scalar loss equal to the mean of text->audio and audio->text cross-entropy
+  - name: train_one_epoch
+    given: a ContrastiveModel, dataloader, optimizer, and scheduler
+    then: runs one epoch of training and returns the mean loss
+  - name: train
+    given: a TrainConfig with all hyperparameters
+    then: loads encoders, builds model, trains for num_epochs with TensorBoard logging
+  - name: recall_at_k
+    given: paired text and audio embeddings and k values
+    then: returns dict with Recall@k metrics for both retrieval directions in [0.0, 1.0]
+
+constraints:
+  - InfoNCE loss is symmetric (both directions averaged)
+  - "Optimizer: AdamW with lr=3e-4 and linear warmup"
+  - Gradients flow only through projection heads and temperature
+  - "Default batch size: 64"
+  - TensorBoard logging for loss and metrics
+
+invariants:
+  - Random embeddings produce loss approximately equal to log(batch_size)
+  - Recall@k values are in [0.0, 1.0]
+  - Training never modifies frozen encoder parameters
+
+artifacts:
+  code:
+    - path: "src/maestroetry/loss.py"
+      role: InfoNCE loss implementation
+    - path: "src/maestroetry/train.py"
+      role: training loop
+    - path: "src/maestroetry/evaluate.py"
+      role: Recall@k evaluation metrics
+    - path: "src/maestroetry/config.py"
+      role: training configuration dataclass and TOML loader
+  configs:
+    - path: "configs/default.toml"
+      role: default hyperparameters
+  tests:
+    - path: "tests/test_loss.py"
+      role: InfoNCE loss tests
+    - path: "tests/test_config.py"
+      role: configuration tests
+
+dependencies:
+  - $ref: "./encoders.spec.yaml"
+    relationship: training uses encoders for forward pass
+  - $ref: "./projection.spec.yaml"
+    relationship: training optimizes projection head parameters
+  - $ref: "./data-pipeline.spec.yaml"
+    relationship: training loads data from the dataset

@@ -1,0 +1,48 @@
+{
+  "schema_version": "1",
+  "cli_version": "0.5.0",
+  "last_reconciliation": {
+    "timestamp": "1773594250Z",
+    "git_hash": "f3be4923be088e7fdf9757ef8a9a1a43ace319ee",
+    "branch": "all-stubs"
+  },
+  "file_fingerprints": {
+    "configs/default.toml": {
+      "blake3": "23271360b170ca829aeee0076aff23e10ab7a4314bbf1a962f7f32b9be59a103"
+    },
+    "src/maestroetry/config.py": {
+      "blake3": "d40b21b3d162a8ae45bf7ab4b8174903e57d9988000f5886b3b7233f70b12bf5"
+    },
+    "src/maestroetry/dataset.py": {
+      "blake3": "0784a998a7bdf50a5ff0c3cc544aa9d420d1a192817ceed82fe6f6a1793964bf"
+    },
+    "src/maestroetry/encoders.py": {
+      "blake3": "7c1c4562892593b38124bb985e2a7e22b50963c04787fdb0e37012aebbd2ead2"
+    },
+    "src/maestroetry/evaluate.py": {
+      "blake3": "a7095224a1ab5aef45bf8388b4842ba2e7b1e88533d3b75797ddea9acc1e5cd1"
+    },
+    "src/maestroetry/loss.py": {
+      "blake3": "252622fec146ac720e8e754c78eebe70d1581096676383058a19483091dc4f83"
+    },
+    "src/maestroetry/projection.py": {
+      "blake3": "c0004476eed79f36061964f1673da1f63c99706773485625e07ab2eedbe962f1"
+    },
+    "src/maestroetry/train.py": {
+      "blake3": "1533a4aae9facd2186b3735e5c53b7c4a9324f0a42a4e174a728fee289e08130"
+    },
+    "tests/test_config.py": {
+      "blake3": "a9e06533f852f1cea4fda13a19709b7fa8d3b955686bbb77ed51ef896be1939d"
+    },
+    "tests/test_loss.py": {
+      "blake3": "503806dac9edf364db271c4c3daf974ec2c5d5f8cbd8318ea6a9b0cb4a24778b"
+    },
+    "tests/test_projection.py": {
+      "blake3": "7d16ea6a27382360501325bfd739d2ac4bd8652a4ad4e66d5ecb39d259534b79"
+    }
+  },
+  "spec_fingerprints": {
+    ".notarai/data-pipeline.spec.yaml": "860c61d2b01ea031187e52d23486f687677c28d70bdbd2d86d71570012e82665",
+    ".notarai/training.spec.yaml": "5997c7a20282cc5a140a94e87d5cf727dda139915f5fc7be0624a3ecc27f1130"
+  }
+}

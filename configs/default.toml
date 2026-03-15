@@ -1,0 +1,30 @@
+[train]
+# Model architecture
+embed_dim = 256
+projection_hidden_dim = 512
+temperature_init = 0.07
+
+# Encoder names
+text_encoder_name = "all-MiniLM-L6-v2"
+audio_encoder_name = "MIT/ast-finetuned-audioset-10-10-0.4593"
+
+# Training
+batch_size = 64
+learning_rate = 3e-4
+weight_decay = 0.01
+warmup_steps = 100
+num_epochs = 20
+grad_accumulation_steps = 1
+
+# Audio preprocessing
+n_mels = 128
+sample_rate = 16000
+max_audio_seconds = 10.0
+
+# Paths
+data_dir = "data"
+cache_dir = "data/cache"
+log_dir = "runs"
+
+# Device: "auto" picks cuda if available, else cpu
+device = "auto"

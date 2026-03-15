@@ -1,0 +1,42 @@
+schema_version: "0.7"
+domain: research
+tier: full
+
+intent: |
+  Audio-to-mel-spectrogram conversion, spectrogram caching as .pt tensor
+  files, and a PyTorch Dataset class for loading paired (spectrogram, text)
+  samples from a CSV manifest for training.
+
+behaviors:
+  - name: audio_to_mel_spectrogram
+    given: a path to an audio file, n_mels, sample rate, and max duration
+    then: returns a 2D mel spectrogram tensor of shape (n_mels, time_frames)
+  - name: cache_spectrograms
+    given: a directory of audio files and a cache directory
+    then: converts all audio files to mel spectrograms and saves as .pt files in the cache directory
+  - name: AudioTextDataset
+    given: a CSV manifest with audio_path and text columns, and a cache directory
+    then: returns a Dataset that yields (spectrogram_tensor, text_string) tuples
+
+constraints:
+  - Mel spectrograms use 128 mel bins by default
+  - Audio resampled to consistent sample rate before conversion
+  - Cached spectrograms stored as .pt tensor files
+  - Dataset reads from a CSV manifest with audio_path and text columns
+
+invariants:
+  - Spectrogram output is a 2D tensor (n_mels, time_frames)
+  - Each Dataset item returns a (spectrogram_tensor, text_string) tuple
+  - Cached spectrograms match their source audio content
+
+artifacts:
+  code:
+    - path: "src/maestroetry/dataset.py"
+      role: spectrogram conversion, caching, and dataset class
+  data:
+    - path: "data/**"
+      role: audio files and cached spectrograms
+
+dependencies:
+  - $ref: "./encoders.spec.yaml"
+    relationship: spectrograms are consumed by the audio encoder

@@ -1,0 +1,48 @@
+schema_version: "0.7"
+domain: research
+tier: full
+
+intent: |
+  Load and freeze pretrained text (all-MiniLM-L6-v2, 384-dim) and audio
+  (MIT/ast-finetuned-audioset-10-10-0.4593) encoders from HuggingFace.
+  Provides functions to extract embeddings from each modality with all
+  parameters frozen and models in eval mode.
+
+behaviors:
+  - name: load_text_encoder
+    given: a sentence-transformers model name and target device
+    then: returns a frozen model in eval mode and its output embedding dimension (384)
+  - name: load_audio_encoder
+    given: an AST model name and target device
+    then: returns a frozen model in eval mode, its feature extractor, and output embedding dimension
+  - name: encode_text
+    given: a list of text strings and a frozen SentenceTransformer
+    then: returns an (N, 384) tensor of text embeddings
+  - name: encode_audio
+    given: mel spectrograms and a frozen AST model with feature extractor
+    then: returns an (N, embed_dim) tensor of audio embeddings
+
+constraints:
+  - All encoder parameters must have requires_grad=False
+  - Encoders must be in eval() mode during all usage
+  - "Text encoder: all-MiniLM-L6-v2 producing 384-dim output"
+  - "Audio encoder: MIT/ast-finetuned-audioset-10-10-0.4593"
+
+invariants:
+  - Encoder weights are never modified after loading
+  - Text encoder output shape is (batch_size, 384)
+  - Audio encoder output shape is (batch_size, audio_embed_dim)
+
+artifacts:
+  code:
+    - path: "src/maestroetry/encoders.py"
+      role: encoder loading and embedding extraction
+  tests:
+    - path: "tests/test_encoders.py"
+      role: encoder tests
+
+dependencies:
+  - $ref: "./projection.spec.yaml"
+    relationship: encoders feed into projection heads
+  - $ref: "./data-pipeline.spec.yaml"
+    relationship: audio encoder consumes spectrograms from data pipeline
