@@ -2,34 +2,34 @@
   "schema_version": "1",
   "cli_version": "0.5.0",
   "last_reconciliation": {
-    "timestamp": "1773594250Z",
-    "git_hash": "f3be4923be088e7fdf9757ef8a9a1a43ace319ee",
-    "branch": "all-stubs"
+    "timestamp": "1773614039Z",
+    "git_hash": "d93ee80870253caaab92b45a45f1cf4dc15eab3e",
+    "branch": "implementation"
   },
   "file_fingerprints": {
     "configs/default.toml": {
-      "blake3": "23271360b170ca829aeee0076aff23e10ab7a4314bbf1a962f7f32b9be59a103"
+      "blake3": "fefe07b91a10348a0b8f7eaee52ce70a723d4051b20cba198dd54e1acae408da"
     },
     "src/maestroetry/config.py": {
-      "blake3": "d40b21b3d162a8ae45bf7ab4b8174903e57d9988000f5886b3b7233f70b12bf5"
+      "blake3": "420fb811e5bfa6034ab371ad0188048dbf7f308f85c2809634db4dd52d6f9505"
     },
     "src/maestroetry/dataset.py": {
       "blake3": "0784a998a7bdf50a5ff0c3cc544aa9d420d1a192817ceed82fe6f6a1793964bf"
     },
     "src/maestroetry/encoders.py": {
-      "blake3": "7c1c4562892593b38124bb985e2a7e22b50963c04787fdb0e37012aebbd2ead2"
+      "blake3": "8d05d358137bfff2fab06d8d095a285e5dee450088de1fd906398c04f8dab1f2"
     },
     "src/maestroetry/evaluate.py": {
-      "blake3": "a7095224a1ab5aef45bf8388b4842ba2e7b1e88533d3b75797ddea9acc1e5cd1"
+      "blake3": "d2e1f69ef22092e7472b285dba3c80800f24aff0e7f7dbef55f23be709c460a6"
     },
     "src/maestroetry/loss.py": {
-      "blake3": "252622fec146ac720e8e754c78eebe70d1581096676383058a19483091dc4f83"
+      "blake3": "6999fdd487f84469ed105e6c5b502705c4149d4ee55cf2ac5db08dc43f676e57"
     },
     "src/maestroetry/projection.py": {
-      "blake3": "c0004476eed79f36061964f1673da1f63c99706773485625e07ab2eedbe962f1"
+      "blake3": "7b16f401eedb64c4a21bede71db6dee6d1b3b85660431f6f3499bef6eefd715b"
     },
     "src/maestroetry/train.py": {
-      "blake3": "1533a4aae9facd2186b3735e5c53b7c4a9324f0a42a4e174a728fee289e08130"
+      "blake3": "788e62a70eeb0b3a5d1c5c607a44e0cb3124a0e7a7ca0dca764cdb380be76caa"
     },
     "tests/test_config.py": {
       "blake3": "a9e06533f852f1cea4fda13a19709b7fa8d3b955686bbb77ed51ef896be1939d"
@@ -43,6 +43,7 @@
   },
   "spec_fingerprints": {
     ".notarai/data-pipeline.spec.yaml": "860c61d2b01ea031187e52d23486f687677c28d70bdbd2d86d71570012e82665",
+    ".notarai/encoders.spec.yaml": "e3394c8b3b60ced7dcab07101a30c36a3fc13497f9bbdb2fe6a9d366a5f76120",
     ".notarai/training.spec.yaml": "5997c7a20282cc5a140a94e87d5cf727dda139915f5fc7be0624a3ecc27f1130"
   }
 }

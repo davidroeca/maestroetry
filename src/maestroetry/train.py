@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import torch
 import torch.optim
 import torch.optim.lr_scheduler
 from torch.utils.data import DataLoader
@@ -12,6 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from maestroetry.dataset import AudioTextDataset
 from maestroetry.encoders import load_audio_encoder, load_text_encoder
+from maestroetry.evaluate import recall_at_k
 from maestroetry.loss import info_nce_loss
 from maestroetry.projection import ContrastiveModel, get_trainable_params
 
@@ -21,6 +23,24 @@ if TYPE_CHECKING:
     from torch.optim.lr_scheduler import LRScheduler
 
     from maestroetry.config import TrainConfig
+
+
+def _eval_recall(
+    model: ContrastiveModel,
+    dataloader: DataLoader[tuple[Tensor, str]],
+    device: str,
+) -> dict[str, float]:
+    """Compute Recall@k metrics over a full dataloader pass."""
+    model.eval()
+    all_text: list[Tensor] = []
+    all_audio: list[Tensor] = []
+    with torch.no_grad():
+        for spectrograms, texts in dataloader:
+            spectrograms = spectrograms.to(device)
+            text_embeds, audio_embeds, _ = model(texts, spectrograms)
+            all_text.append(text_embeds)
+            all_audio.append(audio_embeds)
+    return recall_at_k(torch.cat(all_text), torch.cat(all_audio))
 
 
 def train_one_epoch(
@@ -121,9 +141,7 @@ def train(config: TrainConfig) -> None:
             scheduler=scheduler,
             device=config.device,
         )
-        writer.add_scalar(
-            "loss/train",
-            loss,
-            epoch,
-        )
+        writer.add_scalar("loss/train", loss, epoch)
+        for key, val in _eval_recall(model, dataloader, config.device).items():
+            writer.add_scalar(f"metrics/{key}", val, epoch)
     writer.close()

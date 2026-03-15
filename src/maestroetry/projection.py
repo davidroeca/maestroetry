@@ -75,7 +75,9 @@ class ContrastiveModel(nn.Module):
         self.text_encoder = text_encoder
         self.audio_encoder = audio_encoder
         self.audio_extractor = audio_extractor
-        self.temperature = nn.Parameter(torch.tensor(temperature_init))
+        self.log_temperature = nn.Parameter(
+            torch.tensor(temperature_init).log()
+        )
         self.text_projection_head = ProjectionHead(
             d_in=text_embed_dim,
             d_hidden=projection_hidden,
@@ -111,7 +113,7 @@ class ContrastiveModel(nn.Module):
         )
         text_embeds = self.text_projection_head(text_embeds)
         audio_embeds = self.audio_projection_head(audio_embeds)
-        return text_embeds, audio_embeds, self.temperature
+        return text_embeds, audio_embeds, self.log_temperature.exp()
 
 
 def get_trainable_params(
