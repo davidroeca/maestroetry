@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import torch
 from torch import Tensor
 
 
@@ -28,4 +29,24 @@ def recall_at_k(
         Dict with keys like ``"t2a_R@1"``, ``"t2a_R@5"``,
         ``"a2t_R@1"``, etc., with float values in ``[0, 1]``.
     """
-    raise NotImplementedError
+    if k_values is None:
+        k_values = [1, 5, 10]
+    t2a_sim = text_embeds @ audio_embeds.T
+    a2t_sim = t2a_sim.T
+
+    n = t2a_sim.size(0)
+    targets = torch.arange(n, device=text_embeds.device)
+    t2a_ranked = torch.argsort(t2a_sim, dim=1, descending=True)
+    a2t_ranked = torch.argsort(a2t_sim, dim=1, descending=True)
+
+    result: dict[str, float] = {}
+    for k in k_values:
+        top_k_t2a_indices = t2a_ranked[:, :k]
+        t2a_hits = (top_k_t2a_indices == targets.unsqueeze(1)).any(dim=1)
+        result[f"t2a_R@{k}"] = t2a_hits.float().mean().item()
+
+        top_k_a2t_indices = a2t_ranked[:, :k]
+        a2t_hits = (top_k_a2t_indices == targets.unsqueeze(1)).any(dim=1)
+        result[f"a2t_R@{k}"] = a2t_hits.float().mean().item()
+
+    return result
