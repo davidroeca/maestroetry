@@ -27,7 +27,8 @@ constraints:
 invariants:
   - Output shape is always (batch_size, 256)
   - Output vectors have unit L2 norm
-  - Temperature parameter is a positive scalar
+  - Effective temperature is always a positive scalar; stored as log_temperature
+    (nn.Parameter, unbounded real) and computed as log_temperature.exp().clamp(0.01, 100.0)
 
 artifacts:
   code:

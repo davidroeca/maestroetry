@@ -18,6 +18,8 @@ behaviors:
   - name: train
     given: a TrainConfig with all hyperparameters
     then: loads encoders, builds model, trains for num_epochs with TensorBoard logging
+      for loss and Recall@k metrics; metrics are evaluated every eval_interval epochs
+      and always on the final epoch
   - name: recall_at_k
     given: paired text and audio embeddings and k values
     then: returns dict with Recall@k metrics for both retrieval directions in [0.0, 1.0]
@@ -28,6 +30,7 @@ constraints:
   - Gradients flow only through projection heads and temperature
   - "Default batch size: 64"
   - TensorBoard logging for loss and metrics
+  - Recall@k metrics are logged every eval_interval epochs (and always on the final epoch)
 
 invariants:
   - Random embeddings produce loss approximately equal to log(batch_size)
