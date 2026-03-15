@@ -2,24 +2,23 @@
 
 from __future__ import annotations
 
+import inspect
 
-import pytest
 import torch
-
 from maestroetry.loss import info_nce_loss
 
 
-def test_info_nce_loss_raises_not_implemented():
-    """Loss function is a stub that raises NotImplementedError."""
+def test_info_nce_loss_returns_scalar():
+    """Loss function returns a scalar tensor."""
     text = torch.randn(8, 256)
     audio = torch.randn(8, 256)
-    with pytest.raises(NotImplementedError):
-        info_nce_loss(text, audio)
+    loss = info_nce_loss(text, audio)
+    assert loss.shape == ()
+    assert loss.item() > 0
 
 
 def test_info_nce_loss_signature():
     """Loss function accepts the expected arguments."""
-    import inspect
 
     sig = inspect.signature(info_nce_loss)
     params = list(sig.parameters.keys())
