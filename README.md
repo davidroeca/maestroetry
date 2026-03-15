@@ -17,6 +17,8 @@ Two small trainable **projection heads** (`ProjectionHead`) map both encoder out
 
 Audio is preprocessed in `dataset.py`. `audio_to_mel_spectrogram` loads a file with librosa (resampling to the target sample rate), clips to `max_seconds`, and runs `librosa.feature.melspectrogram` to produce a `(n_mels, time_frames)` tensor. `cache_spectrograms` walks an audio directory, converts each file, and saves the result as a `.pt` file. `AudioTextDataset` reads a CSV manifest with `audio_path` and `text` columns, loads cached spectrograms on demand via `torch.load`, and returns `(spectrogram, text)` pairs.
 
+Training is implemented in `train.py`. `train_one_epoch` runs a standard gradient update loop: move spectrograms to device, call `model.forward`, compute InfoNCE loss, backpropagate, and step both optimizer and scheduler. It returns the mean loss over the epoch. `train` wires everything together from a `TrainConfig`: loads encoders, builds `ContrastiveModel`, constructs an `AudioTextDataset` and `DataLoader`, sets up an AdamW optimizer with a linear warmup scheduler via `LinearLR`, and logs per-epoch loss to TensorBoard via `SummaryWriter`.
+
 Training uses **InfoNCE loss**: for a batch of N paired (text, audio) embeddings, the model computes an NxN cosine similarity matrix (via `text_embeds @ audio_embeds.T`, which equals cosine similarity because both are L2-normalized). The matrix is scaled by `1/temperature` to produce logits. Two cross-entropy terms are computed: one row-wise (each text finds its audio match among N options) and one column-wise (each audio finds its text match). The diagonal of the matrix is the target in both directions. The final loss is their average. Off-diagonal entries act as in-batch negatives, so larger batch sizes produce harder training signal.
 
 ## Getting started
@@ -59,7 +61,6 @@ You'll need a CSV manifest at `data/manifest.csv` with `audio_path` and `text` c
 
 The stubs in `src/maestroetry/` are ready to fill in:
 
-- **`train.py`**: training loop with AdamW and linear warmup, plus TensorBoard logging
 - **`evaluate.py`**: Recall@k for text-to-audio and audio-to-text retrieval
 
 `config.py` is already implemented: a frozen dataclass with TOML file loading.
