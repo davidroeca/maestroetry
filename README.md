@@ -17,10 +17,31 @@ Training uses **InfoNCE loss**: for a batch of N paired (text, audio) examples, 
 
 ## Getting started
 
-```bash
-# Install dependencies
-uv sync
+### Environment setup
 
+PyTorch is installed as an optional extra so the right build (CPU or CUDA) is
+used per environment. Pick the setup for your machine.
+
+**Local dev (CPU-only Linux)**
+
+```bash
+uv sync --extra cpu
+```
+
+**Google Colab (CUDA 12.8)**
+
+Colab has CUDA drivers but no uv, so install uv and sync explicitly:
+
+```python
+!pip install uv -q
+!uv sync --extra cu128
+```
+
+Then prefix any commands with `!uv run` instead of `uv run`.
+
+### Running the project
+
+```bash
 # Cache mel spectrograms from your audio directory
 uv run python main.py cache-spectrograms data/audio data/cache
 

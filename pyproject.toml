@@ -12,9 +12,42 @@ dependencies = [
     "scipy>=1.17.1",
     "sentence-transformers>=5.3.0",
     "tensorboard>=2.20.0",
+    "transformers>=5.3.0",
+]
+
+[project.optional-dependencies]
+cpu = [
     "torch>=2.10.0",
     "torchaudio>=2.10.0",
-    "transformers>=5.3.0",
+]
+cu128 = [
+    "torch>=2.10.0",
+    "torchaudio>=2.10.0",
+]
+
+[tool.uv]
+conflicts = [
+    [{ extra = "cpu" }, { extra = "cu128" }],
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu128", extra = "cu128" },
+]
+torchaudio = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu128", extra = "cu128" },
 ]
 
 [build-system]
