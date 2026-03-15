@@ -78,8 +78,7 @@ def encode_text(
     Returns:
         ``(N, embed_dim)`` tensor of text embeddings.
     """
-    # Redundant but explicit no_grad
-    with torch.no_grad():
+    with torch.inference_mode():
         return model.encode(texts, convert_to_tensor=True)
 
 
@@ -99,7 +98,7 @@ def encode_audio(
     Returns:
         ``(N, embed_dim)`` tensor of audio embeddings.
     """
-    with torch.no_grad():
+    with torch.inference_mode():
         output = model(input_values=spectrograms)
         cls_tokens = output.last_hidden_state[:, 0, :]
         return cls_tokens

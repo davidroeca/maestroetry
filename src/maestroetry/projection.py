@@ -105,15 +105,18 @@ class ContrastiveModel(nn.Module):
             embeds are ``(N, projection_out)`` and temperature
             is a positive scalar tensor.
         """
-        text_embeds = encoders.encode_text(self.text_encoder, texts)
+        text_embeds = encoders.encode_text(
+            self.text_encoder, texts
+        ).detach()
         audio_embeds = encoders.encode_audio(
             self.audio_encoder,
             self.audio_extractor,
             spectrograms,
-        )
+        ).detach()
         text_embeds = self.text_projection_head(text_embeds)
         audio_embeds = self.audio_projection_head(audio_embeds)
-        return text_embeds, audio_embeds, self.log_temperature.exp()
+        temperature = self.log_temperature.exp().clamp(min=0.01, max=100.0)
+        return text_embeds, audio_embeds, temperature
 
 
 def get_trainable_params(

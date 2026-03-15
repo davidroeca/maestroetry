@@ -34,12 +34,17 @@ def _eval_recall(
     model.eval()
     all_text: list[Tensor] = []
     all_audio: list[Tensor] = []
-    with torch.no_grad():
+    with torch.inference_mode():
         for spectrograms, texts in dataloader:
-            spectrograms = spectrograms.to(device)
-            text_embeds, audio_embeds, _ = model(texts, spectrograms)
-            all_text.append(text_embeds)
-            all_audio.append(audio_embeds)
+            spectrograms = spectrograms.to(device, non_blocking=True)
+            with torch.amp.autocast(
+                device_type=device, dtype=torch.bfloat16
+            ):
+                text_embeds, audio_embeds, _ = model(
+                    texts, spectrograms
+                )
+            all_text.append(text_embeds.cpu())
+            all_audio.append(audio_embeds.cpu())
     return recall_at_k(torch.cat(all_text), torch.cat(all_audio))
 
 
@@ -69,10 +74,15 @@ def train_one_epoch(
     model.train()
     losses: list[float] = []
     for spectrograms, texts in dataloader:
-        spectrograms = spectrograms.to(device)
-        optimizer.zero_grad()
-        text_embeds, audio_embeds, temperature = model(texts, spectrograms)
-        loss = info_nce_loss(text_embeds, audio_embeds, temperature)
+        spectrograms = spectrograms.to(device, non_blocking=True)
+        optimizer.zero_grad(set_to_none=True)
+        with torch.amp.autocast(
+            device_type=device, dtype=torch.bfloat16
+        ):
+            text_embeds, audio_embeds, temperature = model(
+                texts, spectrograms
+            )
+            loss = info_nce_loss(text_embeds, audio_embeds, temperature)
         loss.backward()
         optimizer.step()
         scheduler.step()
@@ -93,6 +103,7 @@ def train(config: TrainConfig) -> None:
     Args:
         config: Training configuration.
     """
+    torch.set_float32_matmul_precision("high")
     text_encoder, text_embed_dim = load_text_encoder(
         name=config.text_encoder_name,
         device=config.device,
@@ -112,14 +123,19 @@ def train(config: TrainConfig) -> None:
         temperature_init=config.temperature_init,
     )
     model.to(device=config.device)
+    model.text_projection_head = torch.compile(model.text_projection_head)
+    model.audio_projection_head = torch.compile(model.audio_projection_head)
     dataset = AudioTextDataset(
         manifest_path=Path(config.data_dir) / "manifest.csv",
         cache_dir=config.cache_dir,
     )
+    use_cuda = config.device != "cpu"
     dataloader = DataLoader(
         dataset,
         batch_size=config.batch_size,
         shuffle=True,
+        num_workers=2,
+        pin_memory=use_cuda,
     )
     optimizer = torch.optim.AdamW(
         get_trainable_params(model),
@@ -128,7 +144,7 @@ def train(config: TrainConfig) -> None:
     )
     scheduler = torch.optim.lr_scheduler.LinearLR(
         optimizer,
-        start_factor=1 / config.warmup_steps,
+        start_factor=1 / max(config.warmup_steps, 1),
         end_factor=1.0,
         total_iters=config.warmup_steps,
     )
