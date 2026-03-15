@@ -2,39 +2,83 @@
 
 from __future__ import annotations
 
-import sys
+import argparse
+import logging
+
+from maestroetry.config import load_config
+from maestroetry.dataset import cache_spectrograms
+from maestroetry.ingest import ingest_musiccaps
+from maestroetry.train import train
+
+
+def _cmd_train(args: argparse.Namespace) -> None:
+    config = load_config(args.config)
+    train(config)
+
+
+def _cmd_cache_spectrograms(args: argparse.Namespace) -> None:
+    cache_spectrograms(args.audio_dir, args.cache_dir)
+
+
+def _cmd_ingest_musiccaps(args: argparse.Namespace) -> None:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    ingest_musiccaps(data_dir=args.data_dir, max_samples=args.max_samples)
 
 
 def main() -> None:
-    """Dispatch CLI commands: train, eval, cache-spectrograms."""
-    if len(sys.argv) < 2:
-        print("Usage: main.py <command> [options]")
-        print("Commands: train, eval, cache-spectrograms")
-        sys.exit(1)
+    """Dispatch CLI commands."""
+    parser = argparse.ArgumentParser(
+        prog="maestroetry",
+        description="Contrastive text-audio retrieval model",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    command = sys.argv[1]
+    # train
+    p_train = subparsers.add_parser("train", help="Train the model")
+    p_train.add_argument(
+        "--config",
+        default="configs/default.toml",
+        help="Path to TOML config file (default: configs/default.toml)",
+    )
+    p_train.set_defaults(func=_cmd_train)
 
-    if command == "train":
-        config_path = sys.argv[2] if len(sys.argv) > 2 else "configs/default.toml"
-        from maestroetry.config import load_config
-        from maestroetry.train import train
+    # cache-spectrograms
+    p_cache = subparsers.add_parser(
+        "cache-spectrograms",
+        help="Pre-compute mel spectrograms",
+    )
+    p_cache.add_argument(
+        "--audio-dir",
+        default="data/audio",
+        help="Directory containing audio files (default: data/audio)",
+    )
+    p_cache.add_argument(
+        "--cache-dir",
+        default="data/cache",
+        help="Output directory for cached tensors (default: data/cache)",
+    )
+    p_cache.set_defaults(func=_cmd_cache_spectrograms)
 
-        config = load_config(config_path)
-        train(config)
+    # ingest-musiccaps
+    p_ingest = subparsers.add_parser(
+        "ingest-musiccaps",
+        help="Download MusicCaps dataset",
+    )
+    p_ingest.add_argument(
+        "--data-dir",
+        default="data",
+        help="Root data directory (default: data)",
+    )
+    p_ingest.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="Limit number of samples to download",
+    )
+    p_ingest.set_defaults(func=_cmd_ingest_musiccaps)
 
-    elif command == "eval":
-        raise NotImplementedError("eval command not yet implemented")
-
-    elif command == "cache-spectrograms":
-        from maestroetry.dataset import cache_spectrograms
-
-        audio_dir = sys.argv[2] if len(sys.argv) > 2 else "data/audio"
-        cache_dir = sys.argv[3] if len(sys.argv) > 3 else "data/cache"
-        cache_spectrograms(audio_dir, cache_dir)
-
-    else:
-        print(f"Unknown command: {command}")
-        sys.exit(1)
+    args = parser.parse_args()
+    args.func(args)
 
 
 if __name__ == "__main__":
