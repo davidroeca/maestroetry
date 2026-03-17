@@ -21,7 +21,7 @@ uv sync --extra cpu
 
 **Google Colab (CUDA 12.8)**
 
-```python
+```bash
 !pip install uv -q
 !uv sync --extra cu128
 ```
