@@ -386,22 +386,36 @@ def ingest_sdd(
         else:
             needed_ids.add(tid)
 
-    # Fetch missing tracks from remote fma_large via range requests
+    # Fetch missing tracks from remote FMA archives via range requests.
+    # Try multiple archive sizes since tracks may have been removed
+    # from some archives over time due to DMCA takedowns.
     if needed_ids:
+        unique_track_count = len(
+            {tid for tid, _ in sdd_entries}
+        )
         logger.info(
-            "%d of %d SDD tracks not found locally, "
-            "fetching from remote archive...",
+            "%d of %d unique SDD tracks not found locally, "
+            "fetching from remote archives...",
             len(needed_ids),
-            len(sdd_entries),
+            unique_track_count,
         )
         mp3_dir = downloads_dir / "sdd_tracks"
-        fetched = _fetch_tracks_from_remote_zip(
-            needed_ids,
-            mp3_dir,
-            _FMA_AUDIO_URLS["large"],
-            "fma_large",
-        )
-        local_mp3s.update(fetched)
+        for subset in ("large", "medium", "small"):
+            if not needed_ids:
+                break
+            fetched = _fetch_tracks_from_remote_zip(
+                needed_ids,
+                mp3_dir,
+                _FMA_AUDIO_URLS[subset],
+                f"fma_{subset}",
+            )
+            local_mp3s.update(fetched)
+            needed_ids -= set(fetched.keys())
+        if needed_ids:
+            logger.warning(
+                "%d SDD tracks not found in any remote archive",
+                len(needed_ids),
+            )
 
     # Convert to wav and build manifest rows
     rows: list[dict[str, str]] = []

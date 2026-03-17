@@ -2,8 +2,8 @@
   "schema_version": "1",
   "cli_version": "0.5.0",
   "last_reconciliation": {
-    "timestamp": "1773726954Z",
-    "git_hash": "8a30d98d4abf108dc78e6cb3cfe7487313442e75",
+    "timestamp": "1773728877Z",
+    "git_hash": "d428c338a150665f8097117321380fe17c3cb45b",
     "branch": "main"
   },
   "file_fingerprints": {
@@ -35,7 +35,7 @@
       "blake3": "d2e1f69ef22092e7472b285dba3c80800f24aff0e7f7dbef55f23be709c460a6"
     },
     "src/maestroetry/ingest.py": {
-      "blake3": "bc703d6f3a4007083d48d29526af835042c108a3e8686e4603c3b2a3aabd3fd5"
+      "blake3": "e892ebccaaf3b85328abf543e6e1ba6d9c0a2ee24757377866138dc54c967646"
     },
     "src/maestroetry/loss.py": {
       "blake3": "6999fdd487f84469ed105e6c5b502705c4149d4ee55cf2ac5db08dc43f676e57"
@@ -65,7 +65,7 @@
   "spec_fingerprints": {
     ".notarai/data-pipeline.spec.yaml": "1bf9f5f4b2a54f20aa814745289e0f9837cc7646c1d84b74ef052eba9e904980",
     ".notarai/encoders.spec.yaml": "e3394c8b3b60ced7dcab07101a30c36a3fc13497f9bbdb2fe6a9d366a5f76120",
-    ".notarai/maestroetry.spec.yaml": "9f358c04a93d0844f4457423e2830b79eeb4df37fbe1271a9341b50b9aa0a289",
+    ".notarai/maestroetry.spec.yaml": "3324620b2cb19bcc38d1264704d9bfe86d937b9bc6cc5d1aa25e3d262c840e5e",
     ".notarai/projection.spec.yaml": "9d1efb262b9e1b83bb5d3dec0207c52da2f782727d51e45bd39b59715e912aba",
     ".notarai/training.spec.yaml": "971ad9354d76dce386da24a56b2cbe7d7171fc8fd8adbf1bba1b23ee6119fd3e"
   }

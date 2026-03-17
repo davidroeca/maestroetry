@@ -23,9 +23,9 @@ behaviors:
     given: a data directory and optional max_samples limit
     then: downloads the Song Describer Dataset CSV from Zenodo, resolves audio
       for each track ID by checking locally-extracted FMA subsets first, then
-      fetching any missing tracks from the remote fma_large archive via HTTP
-      range requests; converts to 16kHz mono wav and writes manifest rows with
-      source=sdd
+      fetching any missing tracks by cascading through remote fma_large,
+      fma_medium, and fma_small archives via HTTP range requests; converts to
+      16kHz mono wav and writes manifest rows with source=sdd
   - name: ingest_fma
     given: a data directory, FMA subset name, and optional max_samples limit
     then: downloads FMA audio archive and metadata, generates descriptive
