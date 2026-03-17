@@ -2,8 +2,8 @@
   "schema_version": "1",
   "cli_version": "0.5.0",
   "last_reconciliation": {
-    "timestamp": "1773710567Z",
-    "git_hash": "325cb7a00f064f211b165ebbd0195b14967bd175",
+    "timestamp": "1773721906Z",
+    "git_hash": "0873d39b889d7c9953a96681481ca6ce3a854e08",
     "branch": "main"
   },
   "file_fingerprints": {
@@ -12,6 +12,12 @@
     },
     "configs/default.toml": {
       "blake3": "6d3679d20a077dd6f09965d11f72a209167a0ee3b6003a1c6f948b66cc531902"
+    },
+    "main.py": {
+      "blake3": "c3960d945eff06bec3e43d6ca1a48d3f3c81d2d273e78b4f7e706db00775361a"
+    },
+    "pyproject.toml": {
+      "blake3": "2cef8c57c8aaec1460268b07f16543a40884dd4701e5941121571c9fa2c96da3"
     },
     "src/maestroetry/config.py": {
       "blake3": "2b7b6da034ccf88f17ac5b3aedcedb7eb5c982d2eab5e051dbfb6bfb13dba50d"
@@ -26,7 +32,7 @@
       "blake3": "d2e1f69ef22092e7472b285dba3c80800f24aff0e7f7dbef55f23be709c460a6"
     },
     "src/maestroetry/ingest.py": {
-      "blake3": "c05d53efa10571c784994029f76737af8fadc31b14a7cb220421dc7d9ca11ce1"
+      "blake3": "dde9486a8c6ef6ae188119ed791535605f182510a59a44ad449e7c61be43d023"
     },
     "src/maestroetry/loss.py": {
       "blake3": "6999fdd487f84469ed105e6c5b502705c4149d4ee55cf2ac5db08dc43f676e57"
@@ -40,6 +46,9 @@
     "tests/test_config.py": {
       "blake3": "a9e06533f852f1cea4fda13a19709b7fa8d3b955686bbb77ed51ef896be1939d"
     },
+    "tests/test_ingest.py": {
+      "blake3": "6be268202e55de8425e16b44022a59be5766ec0d3e9605f16976c1d84ca3874e"
+    },
     "tests/test_loss.py": {
       "blake3": "baf063a778af64e48ec9fbe07a2878a2b419c1c45639ca411eb176b292e2bea4"
     },
@@ -48,9 +57,9 @@
     }
   },
   "spec_fingerprints": {
-    ".notarai/data-pipeline.spec.yaml": "860c61d2b01ea031187e52d23486f687677c28d70bdbd2d86d71570012e82665",
+    ".notarai/data-pipeline.spec.yaml": "1bf9f5f4b2a54f20aa814745289e0f9837cc7646c1d84b74ef052eba9e904980",
     ".notarai/encoders.spec.yaml": "e3394c8b3b60ced7dcab07101a30c36a3fc13497f9bbdb2fe6a9d366a5f76120",
-    ".notarai/maestroetry.spec.yaml": "872b049ee0cdf596be6225cb126febbda8275e3137d3bcab387697b96f2a21dd",
+    ".notarai/maestroetry.spec.yaml": "e12fe3dce977fcb5ebc44934bb24339115fb1537d60bd27ac3b7866eeea90aea",
     ".notarai/projection.spec.yaml": "9d1efb262b9e1b83bb5d3dec0207c52da2f782727d51e45bd39b59715e912aba",
     ".notarai/training.spec.yaml": "971ad9354d76dce386da24a56b2cbe7d7171fc8fd8adbf1bba1b23ee6119fd3e"
   }

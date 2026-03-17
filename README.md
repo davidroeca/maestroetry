@@ -24,8 +24,8 @@ pip install poethepoet
 ```bash
 poe sync-cpu            # CPU-only
 poe sync-gpu            # GPU (CUDA 12.8)
-poe sync-cpu-ingest     # CPU + MusicCaps ingest support
-poe sync-gpu-ingest     # GPU + MusicCaps ingest support
+poe sync-cpu-ingest     # CPU + ingest support
+poe sync-gpu-ingest     # GPU + ingest support
 ```
 
 **Google Colab (CUDA 12.8)**
@@ -35,21 +35,30 @@ poe sync-gpu-ingest     # GPU + MusicCaps ingest support
 !poe sync-gpu-ingest
 ```
 
-**Ingest MusicCaps (recommended)**
+**Ingest data (recommended)**
 
-Downloads and trims clips from YouTube via yt-dlp, then writes `data/manifest.csv`. Requires `yt-dlp` and `ffmpeg` on your PATH.
+Downloads audio from two CC-licensed sources and writes `data/manifest.csv`. Requires `ffmpeg` on your PATH.
+
+- **Song Describer Dataset (SDD):** ~1,000 FMA tracks with human-written captions (high-quality anchor)
+- **Free Music Archive (FMA):** 8K+ tracks with programmatic captions derived from metadata (volume)
 
 ```bash
-# Download all MusicCaps clips
-poe run python main.py ingest-musiccaps
+# Download both SDD and FMA small
+poe run python main.py ingest
 
-# Limit to N samples for a quick smoke-test
-poe run python main.py ingest-musiccaps --max-samples 200
+# SDD only (smaller, faster)
+poe run python main.py ingest --sdd-only
+
+# FMA only, limit to N samples
+poe run python main.py ingest --fma-only --max-samples-fma 200
+
+# Use the larger FMA medium subset (~25K tracks)
+poe run python main.py ingest --fma-subset medium
 ```
 
 **Bring your own data**
 
-Alternatively, supply a CSV manifest at `data/manifest.csv` with `audio_path` and `text` columns and place audio files at the referenced paths.
+Alternatively, supply a CSV manifest at `data/manifest.csv` with `audio_path`, `text`, and (optionally) `source` columns and place audio files at the referenced paths.
 
 **Train**
 
@@ -74,11 +83,12 @@ poe run python main.py train
 
 ## Data
 
-A few thousand well-curated pairs is enough. The frozen encoders provide strong representations; the projection heads just learn the alignment. Some options:
+A few thousand well-curated pairs is enough. The frozen encoders provide strong representations; the projection heads just learn the alignment. The built-in ingest pipeline uses two tiers:
 
-- **Free Music Archive (FMA):** creative-commons music with genre/metadata
-- **Lyrics datasets:** pair songs with their lyrics
-- **LLM-generated descriptions:** write rich text descriptions of audio clips
+- **Song Describer Dataset (SDD):** ~1,000 human-written captions mapped to FMA track IDs (quality anchor)
+- **FMA small/medium:** 8K-25K CC-licensed tracks with programmatic captions from genre metadata (volume)
+
+Both are CC-licensed and downloaded directly (no YouTube/yt-dlp dependency).
 
 ## Future direction
 

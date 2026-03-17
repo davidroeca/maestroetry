@@ -19,11 +19,21 @@ behaviors:
   - name: contrastive_training
     given: a batch of N paired (text, audio) examples
     then: InfoNCE loss drives matched pairs to high cosine similarity and unmatched pairs apart
-  - name: ingest_musiccaps
+  - name: ingest_sdd
     given: a data directory and optional max_samples limit
-    then: downloads MusicCaps audio clips from YouTube via yt-dlp, trims them
-      to annotated segments with ffmpeg, and writes a manifest CSV compatible
-      with AudioTextDataset to data_dir/manifest.csv
+    then: downloads the Song Describer Dataset CSV from Zenodo, fetches
+      corresponding FMA audio files by track ID, converts to 16kHz mono wav,
+      and writes manifest rows with source=sdd
+  - name: ingest_fma
+    given: a data directory, FMA subset name, and optional max_samples limit
+    then: downloads FMA audio archive and metadata, generates descriptive
+      captions from metadata fields (genre, title, tags) using natural-language
+      templates, converts audio to 16kHz mono wav, and writes manifest rows
+      with source=fma
+  - name: ingest
+    given: a data directory and configuration options for both data sources
+    then: orchestrates ingest_sdd and ingest_fma, producing a unified
+      manifest.csv with audio_path, text, and source columns
 
 constraints:
   - Base encoders (text and audio) remain frozen during training
@@ -37,6 +47,14 @@ invariants:
   - Frozen encoder weights are never modified during training
 
 decisions:
+  - date: "2026-03-16"
+    choice: Replace MusicCaps/YouTube ingest with Song Describer Dataset + FMA
+    rationale: >
+      YouTube-based ingest via yt-dlp is unreliable due to rate limiting,
+      video takedowns, and slow downloads. SDD provides ~1,000 human-written
+      captions mapped to FMA track IDs, and FMA offers CC-licensed audio
+      directly downloadable from archive.org. Programmatic captions from
+      FMA metadata provide volume alongside SDD's quality anchors.
   - date: "2026-03-14"
     choice: Use frozen pretrained encoders with trainable projection heads only
     rationale: >

@@ -20,11 +20,18 @@ def _cmd_cache_spectrograms(args: argparse.Namespace) -> None:
     cache_spectrograms(args.audio_dir, args.cache_dir)
 
 
-def _cmd_ingest_musiccaps(args: argparse.Namespace) -> None:
-    from maestroetry.ingest import ingest_musiccaps
+def _cmd_ingest(args: argparse.Namespace) -> None:
+    from maestroetry.ingest import ingest
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    ingest_musiccaps(data_dir=args.data_dir, max_samples=args.max_samples)
+    ingest(
+        data_dir=args.data_dir,
+        fma_subset=args.fma_subset,
+        max_samples_sdd=args.max_samples_sdd,
+        max_samples_fma=args.max_samples_fma,
+        sdd_only=args.sdd_only,
+        fma_only=args.fma_only,
+    )
 
 
 def main() -> None:
@@ -61,10 +68,10 @@ def main() -> None:
     )
     p_cache.set_defaults(func=_cmd_cache_spectrograms)
 
-    # ingest-musiccaps
+    # ingest
     p_ingest = subparsers.add_parser(
-        "ingest-musiccaps",
-        help="Download MusicCaps dataset",
+        "ingest",
+        help="Download SDD + FMA datasets",
     )
     p_ingest.add_argument(
         "--data-dir",
@@ -72,12 +79,34 @@ def main() -> None:
         help="Root data directory (default: data)",
     )
     p_ingest.add_argument(
-        "--max-samples",
+        "--fma-subset",
+        default="small",
+        choices=["small", "medium"],
+        help="FMA subset to download (default: small)",
+    )
+    p_ingest.add_argument(
+        "--max-samples-sdd",
         type=int,
         default=None,
-        help="Limit number of samples to download",
+        help="Limit number of SDD samples",
     )
-    p_ingest.set_defaults(func=_cmd_ingest_musiccaps)
+    p_ingest.add_argument(
+        "--max-samples-fma",
+        type=int,
+        default=None,
+        help="Limit number of FMA samples",
+    )
+    p_ingest.add_argument(
+        "--sdd-only",
+        action="store_true",
+        help="Only ingest Song Describer Dataset",
+    )
+    p_ingest.add_argument(
+        "--fma-only",
+        action="store_true",
+        help="Only ingest FMA dataset",
+    )
+    p_ingest.set_defaults(func=_cmd_ingest)
 
     args = parser.parse_args()
     args.func(args)
