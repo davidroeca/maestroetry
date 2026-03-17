@@ -2,11 +2,14 @@
   "schema_version": "1",
   "cli_version": "0.5.0",
   "last_reconciliation": {
-    "timestamp": "1773618281Z",
-    "git_hash": "7b7b3f02db062a468314ae348072d9f9c84054fa",
-    "branch": "ingest"
+    "timestamp": "1773710567Z",
+    "git_hash": "325cb7a00f064f211b165ebbd0195b14967bd175",
+    "branch": "main"
   },
   "file_fingerprints": {
+    "README.md": {
+      "blake3": "8b99272bddef71fa81eaee1f3b2d1915363527f73124c3698a6ecc5aed10337a"
+    },
     "configs/default.toml": {
       "blake3": "6d3679d20a077dd6f09965d11f72a209167a0ee3b6003a1c6f948b66cc531902"
     },

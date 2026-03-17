@@ -61,6 +61,7 @@ cmd = "uv run ${ARGS}"
 help = "Run a command via uv run with UV_NO_SYNC=1"
 
 [tool.poe.tasks.run.env]
+# Necessary because of https://github.com/astral-sh/uv/issues/12429
 UV_NO_SYNC = "1"
 
 [tool.poe.tasks.sync-gpu-ingest]

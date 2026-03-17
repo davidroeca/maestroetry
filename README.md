@@ -13,30 +13,53 @@ Small trainable projection heads map both into a shared 256-dimensional L2-norma
 
 ## Getting started
 
-**Local dev (CPU-only Linux)**
+Install [poe the poet](https://poethepoet.natn.io/) if you haven't already:
 
 ```bash
-uv sync --extra cpu
+pip install poethepoet
+```
+
+**Local dev**
+
+```bash
+poe sync-cpu            # CPU-only
+poe sync-gpu            # GPU (CUDA 12.8)
+poe sync-cpu-ingest     # CPU + MusicCaps ingest support
+poe sync-gpu-ingest     # GPU + MusicCaps ingest support
 ```
 
 **Google Colab (CUDA 12.8)**
 
 ```bash
-!pip install uv -q
-!uv sync --extra cu128
+!pip install uv poethepoet -q
+!poe sync-gpu-ingest
 ```
+
+**Ingest MusicCaps (recommended)**
+
+Downloads and trims clips from YouTube via yt-dlp, then writes `data/manifest.csv`. Requires `yt-dlp` and `ffmpeg` on your PATH.
+
+```bash
+# Download all MusicCaps clips
+poe run python main.py ingest-musiccaps
+
+# Limit to N samples for a quick smoke-test
+poe run python main.py ingest-musiccaps --max-samples 200
+```
+
+**Bring your own data**
+
+Alternatively, supply a CSV manifest at `data/manifest.csv` with `audio_path` and `text` columns and place audio files at the referenced paths.
 
 **Train**
 
 ```bash
 # Cache mel spectrograms from your audio directory
-uv run python main.py cache-spectrograms data/audio data/cache
+poe run python main.py cache-spectrograms
 
 # Train
-uv run python main.py train configs/default.toml
+poe run python main.py train
 ```
-
-You'll need a CSV manifest at `data/manifest.csv` with `audio_path` and `text` columns.
 
 ## Hyperparameters
 
