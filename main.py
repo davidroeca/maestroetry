@@ -10,8 +10,11 @@ def _cmd_train(args: argparse.Namespace) -> None:
     from maestroetry.config import load_config
     from maestroetry.train import train
 
-    config = load_config(args.config)
-    train(config)
+    overrides: dict[str, str] = {}
+    if args.checkpoint_dir:
+        overrides["checkpoint_dir"] = args.checkpoint_dir
+    config = load_config(args.config, **overrides)
+    train(config, resume=args.resume)
 
 
 def _cmd_cache_spectrograms(args: argparse.Namespace) -> None:
@@ -48,6 +51,16 @@ def main() -> None:
         "--config",
         default="configs/default.toml",
         help="Path to TOML config file (default: configs/default.toml)",
+    )
+    p_train.add_argument(
+        "--checkpoint-dir",
+        default=None,
+        help="Directory for saving checkpoints (overrides config)",
+    )
+    p_train.add_argument(
+        "--resume",
+        default=None,
+        help="Path to checkpoint file to resume training from",
     )
     p_train.set_defaults(func=_cmd_train)
 

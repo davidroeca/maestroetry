@@ -45,17 +45,19 @@ class TrainConfig:
     data_dir: str = "data"
     cache_dir: str = "data/cache"
     log_dir: str = "runs"
+    checkpoint_dir: str = "checkpoints"
 
     # Device: "auto", "cuda", or "cpu" - "auto" allowed in file
     # but not in-memory
     device: Literal["cuda", "cpu"] = "cuda"
 
 
-def load_config(path: str | Path) -> TrainConfig:
+def load_config(path: str | Path, **overrides: str) -> TrainConfig:
     """Load a TrainConfig from a TOML file.
 
     Only keys that match TrainConfig fields are used;
-    unknown keys are silently ignored.
+    unknown keys are silently ignored. Keyword arguments
+    override values from the file.
     """
     with open(path, "rb") as f:
         raw = tomllib.load(f)
@@ -65,6 +67,7 @@ def load_config(path: str | Path) -> TrainConfig:
 
     valid_fields = {f.name for f in fields(TrainConfig)}
     filtered = {k: v for k, v in values.items() if k in valid_fields}
+    filtered.update({k: v for k, v in overrides.items() if k in valid_fields})
 
     if filtered.get("device", "auto") == "auto":
         filtered["device"] = "cuda" if torch.cuda.is_available() else "cpu"

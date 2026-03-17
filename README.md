@@ -66,9 +66,17 @@ Alternatively, supply a CSV manifest at `data/manifest.csv` with `audio_path`, `
 # Cache mel spectrograms from your audio directory
 poe run python main.py cache-spectrograms
 
-# Train
+# Train (saves checkpoints to checkpoints/)
 poe run python main.py train
+
+# Save checkpoints to a custom directory (e.g. Google Drive)
+poe run python main.py train --checkpoint-dir /content/drive/MyDrive/maestroetry/checkpoints
+
+# Resume training from a checkpoint
+poe run python main.py train --resume checkpoints/latest.pt
 ```
+
+Checkpoints are saved at each eval interval and at the end of training. Each checkpoint includes model weights, optimizer state, and scheduler state, so training can be resumed exactly where it left off.
 
 ## Hyperparameters
 

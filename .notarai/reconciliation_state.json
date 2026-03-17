@@ -2,8 +2,8 @@
   "schema_version": "1",
   "cli_version": "0.5.0",
   "last_reconciliation": {
-    "timestamp": "1773721906Z",
-    "git_hash": "0873d39b889d7c9953a96681481ca6ce3a854e08",
+    "timestamp": "1773725043Z",
+    "git_hash": "19e3faf407ed51a16a8a0c524aa5a0900035da92",
     "branch": "main"
   },
   "file_fingerprints": {
@@ -11,16 +11,19 @@
       "blake3": "8b99272bddef71fa81eaee1f3b2d1915363527f73124c3698a6ecc5aed10337a"
     },
     "configs/default.toml": {
-      "blake3": "6d3679d20a077dd6f09965d11f72a209167a0ee3b6003a1c6f948b66cc531902"
+      "blake3": "28e039c60e4f1cfc0e07d53ca3f81dd4cd214a55f010684fb9654a5812f89464"
     },
     "main.py": {
-      "blake3": "c3960d945eff06bec3e43d6ca1a48d3f3c81d2d273e78b4f7e706db00775361a"
+      "blake3": "d1d054d42591a9a69932288d24ccd14fe845d97eb4a58f7c2f06a2063cd36077"
     },
     "pyproject.toml": {
       "blake3": "2cef8c57c8aaec1460268b07f16543a40884dd4701e5941121571c9fa2c96da3"
     },
+    "src/maestroetry/__init__.py": {
+      "blake3": "6d248d91b44e2db6bd8ed2e0e62696ab0c6546a451cf2f149c4860bc3b962bf4"
+    },
     "src/maestroetry/config.py": {
-      "blake3": "2b7b6da034ccf88f17ac5b3aedcedb7eb5c982d2eab5e051dbfb6bfb13dba50d"
+      "blake3": "b7059be703e160399c76d34e6b76be410e66e3fc22cfe09ee0c1a4fefeb5dab4"
     },
     "src/maestroetry/dataset.py": {
       "blake3": "a2bcc226485ad9658846f07c16ac5a7bd110b3b94d75b2d1e3d6eb3f6cc3aae2"
@@ -41,7 +44,10 @@
       "blake3": "3174805bb7c55b34dbc627b75b53c15b67c44f08584590dcd063da2cc9962894"
     },
     "src/maestroetry/train.py": {
-      "blake3": "1c9266fe9567462b4282cb5462f63545b6173ed0afa7e4c660080719f25b7a7d"
+      "blake3": "16160cac6b911040cbec8ec08ba855dbcf4b736f22f69b6312d68cebac25f91e"
+    },
+    "tests/__init__.py": {
+      "blake3": "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
     },
     "tests/test_config.py": {
       "blake3": "a9e06533f852f1cea4fda13a19709b7fa8d3b955686bbb77ed51ef896be1939d"

@@ -37,12 +37,8 @@ def _eval_recall(
     with torch.inference_mode():
         for spectrograms, texts in dataloader:
             spectrograms = spectrograms.to(device, non_blocking=True)
-            with torch.amp.autocast(
-                device_type=device, dtype=torch.bfloat16
-            ):
-                text_embeds, audio_embeds, _ = model(
-                    texts, spectrograms
-                )
+            with torch.amp.autocast(device_type=device, dtype=torch.bfloat16):
+                text_embeds, audio_embeds, _ = model(texts, spectrograms)
             all_text.append(text_embeds.cpu())
             all_audio.append(audio_embeds.cpu())
     return recall_at_k(torch.cat(all_text), torch.cat(all_audio))
@@ -76,12 +72,8 @@ def train_one_epoch(
     for spectrograms, texts in dataloader:
         spectrograms = spectrograms.to(device, non_blocking=True)
         optimizer.zero_grad(set_to_none=True)
-        with torch.amp.autocast(
-            device_type=device, dtype=torch.bfloat16
-        ):
-            text_embeds, audio_embeds, temperature = model(
-                texts, spectrograms
-            )
+        with torch.amp.autocast(device_type=device, dtype=torch.bfloat16):
+            text_embeds, audio_embeds, temperature = model(texts, spectrograms)
             loss = info_nce_loss(text_embeds, audio_embeds, temperature)
         loss.backward()
         optimizer.step()
@@ -93,7 +85,41 @@ def train_one_epoch(
         return 0.0
 
 
-def train(config: TrainConfig) -> None:
+def save_checkpoint(
+    path: Path,
+    model: ContrastiveModel,
+    optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler.LRScheduler,
+    epoch: int,
+) -> None:
+    """Save model checkpoint to disk."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "epoch": epoch,
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
+        },
+        path,
+    )
+
+
+def load_checkpoint(
+    path: Path,
+    model: ContrastiveModel,
+    optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler.LRScheduler,
+) -> int:
+    """Load checkpoint and return the next epoch to train."""
+    ckpt = torch.load(path, weights_only=False)
+    model.load_state_dict(ckpt["model"])
+    optimizer.load_state_dict(ckpt["optimizer"])
+    scheduler.load_state_dict(ckpt["scheduler"])
+    return ckpt["epoch"] + 1
+
+
+def train(config: TrainConfig, resume: str | None = None) -> None:
     """Full training entrypoint.
 
     Loads encoders, builds the ContrastiveModel, sets up data
@@ -102,6 +128,7 @@ def train(config: TrainConfig) -> None:
 
     Args:
         config: Training configuration.
+        resume: Path to a checkpoint file to resume from.
     """
     torch.set_float32_matmul_precision("high")
     text_encoder, text_embed_dim = load_text_encoder(
@@ -148,8 +175,13 @@ def train(config: TrainConfig) -> None:
         end_factor=1.0,
         total_iters=config.warmup_steps,
     )
+    start_epoch = 0
+    if resume:
+        start_epoch = load_checkpoint(Path(resume), model, optimizer, scheduler)
+
+    ckpt_dir = Path(config.checkpoint_dir)
     writer = SummaryWriter(config.log_dir)
-    for epoch in range(config.num_epochs):
+    for epoch in range(start_epoch, config.num_epochs):
         loss = train_one_epoch(
             model=model,
             dataloader=dataloader,
@@ -163,4 +195,20 @@ def train(config: TrainConfig) -> None:
             metrics = _eval_recall(model, dataloader, config.device)
             for key, val in metrics.items():
                 writer.add_scalar(f"metrics/{key}", val, epoch)
+            save_checkpoint(
+                ckpt_dir / f"epoch_{epoch:04d}.pt",
+                model,
+                optimizer,
+                scheduler,
+                epoch,
+            )
+    # Always save a latest checkpoint for easy resuming
+    if config.num_epochs > 0:
+        save_checkpoint(
+            ckpt_dir / "latest.pt",
+            model,
+            optimizer,
+            scheduler,
+            config.num_epochs - 1,
+        )
     writer.close()

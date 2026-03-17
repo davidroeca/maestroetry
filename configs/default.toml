@@ -26,6 +26,7 @@ max_audio_seconds = 10.0
 data_dir = "data"
 cache_dir = "data/cache"
 log_dir = "runs"
+checkpoint_dir = "checkpoints"
 
 # Device: "auto" picks cuda if available, else cpu
 device = "auto"
