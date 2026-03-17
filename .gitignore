@@ -12,3 +12,6 @@ wheels/
 data/
 runs/
 *.pt
+
+# Machine-local uv config (hardware-specific extras)
+uv.toml
