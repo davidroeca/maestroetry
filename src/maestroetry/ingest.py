@@ -9,7 +9,7 @@ import random
 import subprocess
 import zipfile
 from pathlib import Path
-from urllib.request import urlretrieve
+from urllib.request import Request, urlopen, urlretrieve
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ _FMA_META_BASE = "https://os.unil.cloud.switch.ch/fma/fma_metadata.zip"
 _FMA_AUDIO_URLS: dict[str, str] = {
     "small": "https://os.unil.cloud.switch.ch/fma/fma_small.zip",
     "medium": "https://os.unil.cloud.switch.ch/fma/fma_medium.zip",
+    "large": "https://os.unil.cloud.switch.ch/fma/fma_large.zip",
 }
 
 # Caption templates for programmatic FMA captions.
@@ -125,6 +126,115 @@ def _download_file(url: str, dest: Path) -> Path:
     return dest
 
 
+class _HttpFile:
+    """Seekable file-like object backed by HTTP range requests.
+
+    Lets ``zipfile.ZipFile`` read specific members from a remote
+    zip without downloading the entire archive.
+    """
+
+    def __init__(self, url: str) -> None:
+        self.url = url
+        req = Request(url, method="HEAD")
+        with urlopen(req) as resp:
+            self._size = int(resp.headers["Content-Length"])
+            if resp.headers.get("Accept-Ranges") != "bytes":
+                raise RuntimeError(
+                    "Server does not support range requests"
+                )
+        self._pos = 0
+
+    def seekable(self) -> bool:
+        return True
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        if whence == 0:
+            self._pos = offset
+        elif whence == 1:
+            self._pos += offset
+        elif whence == 2:
+            self._pos = self._size + offset
+        self._pos = max(0, min(self._pos, self._size))
+        return self._pos
+
+    def tell(self) -> int:
+        return self._pos
+
+    def read(self, size: int = -1) -> bytes:
+        if self._pos >= self._size:
+            return b""
+        if size == -1 or size is None:
+            size = self._size - self._pos
+        if size <= 0:
+            return b""
+        end = min(self._pos + size - 1, self._size - 1)
+        req = Request(self.url)
+        req.add_header("Range", f"bytes={self._pos}-{end}")
+        with urlopen(req) as resp:
+            data = resp.read()
+        self._pos += len(data)
+        return data
+
+
+def _fetch_tracks_from_remote_zip(
+    track_ids: set[int],
+    dest_dir: Path,
+    zip_url: str,
+    archive_name: str,
+) -> dict[int, Path]:
+    """Download specific MP3s from a remote FMA zip via range requests.
+
+    Uses HTTP range requests so only the zip central directory and
+    the requested tracks are transferred, not the full archive.
+
+    Args:
+        track_ids: Set of FMA track IDs to fetch.
+        dest_dir: Local directory to write MP3 files into.
+        zip_url: URL of the remote FMA zip archive.
+        archive_name: Name prefix inside the zip (e.g. "fma_large").
+
+    Returns:
+        Mapping of track ID to local MP3 path for successfully
+        fetched tracks.
+    """
+    logger.info(
+        "Fetching %d tracks from remote %s archive...",
+        len(track_ids),
+        archive_name,
+    )
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    http_file = _HttpFile(zip_url)
+    fetched: dict[int, Path] = {}
+
+    with zipfile.ZipFile(http_file) as zf:
+        for tid in track_ids:
+            fname = f"{tid:06d}.mp3"
+            member = f"{archive_name}/{fname[:3]}/{fname}"
+            try:
+                data = zf.read(member)
+            except KeyError:
+                logger.debug(
+                    "Track %d not in %s", tid, archive_name
+                )
+                continue
+
+            mp3_path = dest_dir / fname
+            mp3_path.write_bytes(data)
+            fetched[tid] = mp3_path
+
+            if len(fetched) % 50 == 0:
+                logger.info(
+                    "[%d] tracks fetched...", len(fetched)
+                )
+
+    logger.info(
+        "Fetched %d of %d requested tracks",
+        len(fetched),
+        len(track_ids),
+    )
+    return fetched
+
+
 def _read_fma_tracks_csv(
     meta_zip_path: Path,
 ) -> dict[int, dict[str, str]]:
@@ -204,9 +314,11 @@ def ingest_sdd(
     """Download the Song Describer Dataset and matching FMA audio.
 
     SDD is a CSV mapping FMA track IDs to human-written
-    descriptions. This function downloads the CSV, fetches
-    the corresponding FMA audio, converts to 16kHz mono wav,
-    and returns manifest rows.
+    descriptions. This function downloads the CSV, then
+    resolves audio for each track: first checking any
+    locally-extracted FMA subsets, then fetching missing
+    tracks individually from the remote fma_large archive
+    via HTTP range requests.
 
     Args:
         data_dir: Root data directory.
@@ -225,69 +337,92 @@ def ingest_sdd(
     sdd_csv_path = downloads_dir / "song_describer.csv"
     _download_file(SDD_CSV_URL, sdd_csv_path)
 
-    # Download FMA metadata for track info
-    meta_zip_path = downloads_dir / "fma_metadata.zip"
-    _download_file(_FMA_META_BASE, meta_zip_path)
-
-    # We also need the FMA small audio to get the actual mp3s
-    fma_audio_zip = downloads_dir / "fma_small.zip"
-    _download_file(_FMA_AUDIO_URLS["small"], fma_audio_zip)
-
-    # Extract FMA audio if not already extracted
-    fma_audio_root = downloads_dir / "fma_small"
-    if not fma_audio_root.exists():
-        logger.info("Extracting FMA small audio...")
-        with zipfile.ZipFile(fma_audio_zip) as zf:
-            zf.extractall(downloads_dir)
-
-    # Parse SDD CSV
-    rows: list[dict[str, str]] = []
+    # Parse SDD CSV to collect (track_id, caption) pairs
+    sdd_entries: list[tuple[int, str]] = []
     with sdd_csv_path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for i, row in enumerate(reader):
             if max_samples is not None and i >= max_samples:
                 break
-
-            track_id_str = row.get("track_id", row.get("id", ""))
+            track_id_str = row.get(
+                "track_id", row.get("id", "")
+            )
             if not track_id_str:
                 continue
             try:
                 track_id = int(track_id_str)
             except ValueError:
                 continue
-
             caption = row.get(
-                "caption",
-                row.get("description", ""),
+                "caption", row.get("description", "")
             )
             if not caption:
                 continue
+            sdd_entries.append((track_id, caption))
 
-            # Find FMA audio file
-            mp3_path = _fma_track_id_to_path(track_id, fma_audio_root)
+    if not sdd_entries:
+        logger.warning("No valid entries found in SDD CSV")
+        return []
+
+    # Resolve MP3 sources: check local FMA extractions first
+    needed_ids: set[int] = set()
+    local_mp3s: dict[int, Path] = {}
+
+    for tid, _ in sdd_entries:
+        wav_path = audio_dir / f"{tid:06d}.wav"
+        if wav_path.exists():
+            continue  # already converted
+
+        mp3_path = None
+        for subset in ("small", "medium", "large", "full"):
+            fma_root = downloads_dir / f"fma_{subset}"
+            candidate = _fma_track_id_to_path(tid, fma_root)
+            if candidate is not None:
+                mp3_path = candidate
+                break
+
+        if mp3_path is not None:
+            local_mp3s[tid] = mp3_path
+        else:
+            needed_ids.add(tid)
+
+    # Fetch missing tracks from remote fma_large via range requests
+    if needed_ids:
+        logger.info(
+            "%d of %d SDD tracks not found locally, "
+            "fetching from remote archive...",
+            len(needed_ids),
+            len(sdd_entries),
+        )
+        mp3_dir = downloads_dir / "sdd_tracks"
+        fetched = _fetch_tracks_from_remote_zip(
+            needed_ids,
+            mp3_dir,
+            _FMA_AUDIO_URLS["large"],
+            "fma_large",
+        )
+        local_mp3s.update(fetched)
+
+    # Convert to wav and build manifest rows
+    rows: list[dict[str, str]] = []
+    for tid, caption in sdd_entries:
+        wav_path = audio_dir / f"{tid:06d}.wav"
+        if not wav_path.exists():
+            mp3_path = local_mp3s.get(tid)
             if mp3_path is None:
-                logger.warning(
-                    "FMA audio not found for track %d",
-                    track_id,
-                )
                 continue
-
-            wav_path = audio_dir / f"{track_id:06d}.wav"
             if not _convert_to_wav(mp3_path, wav_path):
                 continue
 
-            rows.append(
-                {
-                    "audio_path": str(wav_path),
-                    "text": caption,
-                    "source": "sdd",
-                }
-            )
-            logger.info(
-                "[%d] SDD track %d OK",
-                len(rows),
-                track_id,
-            )
+        rows.append(
+            {
+                "audio_path": str(wav_path),
+                "text": caption,
+                "source": "sdd",
+            }
+        )
+        if len(rows) % 100 == 0:
+            logger.info("[%d] SDD tracks processed...", len(rows))
 
     logger.info("SDD ingest complete: %d samples", len(rows))
     return rows
