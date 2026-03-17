@@ -56,6 +56,29 @@ select = ["E4", "E7", "E9", "F", "I"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.poe.tasks.run]
+cmd = "uv run ${ARGS}"
+help = "Run a command via uv run with UV_NO_SYNC=1"
+
+[tool.poe.tasks.run.env]
+UV_NO_SYNC = "1"
+
+[tool.poe.tasks.sync-gpu-ingest]
+cmd = "uv sync --group cu128 --group ingest"
+help = "Sync dependencies with GPU (CUDA 12.8) and ingest support"
+
+[tool.poe.tasks.sync-gpu]
+cmd = "uv sync --group cu128"
+help = "Sync dependencies with GPU (CUDA 12.8) support"
+
+[tool.poe.tasks.sync-cpu]
+cmd = "uv sync --group cpu"
+help = "Sync dependencies with CPU-only support"
+
+[tool.poe.tasks.sync-cpu-ingest]
+cmd = "uv sync --group cpu --group ingest"
+help = "Sync dependencies with CPU and ingest support"
+
 [dependency-groups]
 cpu = [
     "torch>=2.10.0",
