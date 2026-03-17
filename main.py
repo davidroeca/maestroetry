@@ -5,22 +5,24 @@ from __future__ import annotations
 import argparse
 import logging
 
-from maestroetry.config import load_config
-from maestroetry.dataset import cache_spectrograms
-from maestroetry.ingest import ingest_musiccaps
-from maestroetry.train import train
-
 
 def _cmd_train(args: argparse.Namespace) -> None:
+    from maestroetry.config import load_config
+    from maestroetry.train import train
+
     config = load_config(args.config)
     train(config)
 
 
 def _cmd_cache_spectrograms(args: argparse.Namespace) -> None:
+    from maestroetry.dataset import cache_spectrograms
+
     cache_spectrograms(args.audio_dir, args.cache_dir)
 
 
 def _cmd_ingest_musiccaps(args: argparse.Namespace) -> None:
+    from maestroetry.ingest import ingest_musiccaps
+
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     ingest_musiccaps(data_dir=args.data_dir, max_samples=args.max_samples)
 
