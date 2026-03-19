@@ -37,23 +37,23 @@ poe sync-gpu-ingest     # GPU + ingest support
 
 **Ingest data (recommended)**
 
-Downloads audio from two CC-licensed sources and writes `data/manifest.csv`. Requires `ffmpeg` on your PATH.
+Downloads audio from two CC-licensed HuggingFace datasets and writes `data/manifest.csv`.
 
-- **Song Describer Dataset (SDD):** ~1,000 FMA tracks with human-written captions (high-quality anchor)
-- **Free Music Archive (FMA):** 8K+ tracks with programmatic captions derived from metadata (volume)
+- **LP-MusicCaps-MTT:** ~3K tracks with LLM-generated captions (high-quality)
+- **MTG-Jamendo:** ~10.5K tracks with programmatic captions from genre/instrument/mood tags (volume)
 
 ```bash
-# Download both SDD and FMA small
+# Download both LP-MusicCaps and Jamendo (~13.5K pairs total)
 poe run python main.py ingest
 
-# SDD only (smaller, faster)
-poe run python main.py ingest --sdd-only
+# LP-MusicCaps only (smaller, faster)
+poe run python main.py ingest --lp-only
 
-# FMA only, limit to N samples
-poe run python main.py ingest --fma-only --max-samples-fma 200
+# Jamendo only, limit to N samples
+poe run python main.py ingest --jamendo-only --max-samples-jamendo 200
 
-# Use the larger FMA medium subset (~25K tracks)
-poe run python main.py ingest --fma-subset medium
+# Limit both sources
+poe run python main.py ingest --max-samples-lp 500 --max-samples-jamendo 1000
 ```
 
 **Bring your own data**
@@ -93,10 +93,39 @@ Checkpoints are saved at each eval interval and at the end of training. Each che
 
 A few thousand well-curated pairs is enough. The frozen encoders provide strong representations; the projection heads just learn the alignment. The built-in ingest pipeline uses two tiers:
 
-- **Song Describer Dataset (SDD):** ~1,000 human-written captions mapped to FMA track IDs (quality anchor)
-- **FMA small/medium:** 8K-25K CC-licensed tracks with programmatic captions from genre metadata (volume)
+- **LP-MusicCaps-MTT:** ~3K tracks with LLM-generated captions (`mulab-mir/lp-music-caps-magnatagatune-3k`)
+- **MTG-Jamendo:** ~10.5K tracks with programmatic captions from genre/instrument/mood tags (`vtsouval/mtg_jamendo_autotagging`)
 
-Both are CC-licensed and downloaded directly (no YouTube/yt-dlp dependency).
+Both are CC-licensed and fetched via the HuggingFace `datasets` library (no YouTube/yt-dlp dependency).
+
+## Attribution
+
+### LP-MusicCaps-MTT
+
+Audio and captions from [LP-MusicCaps: LLM-Based Pseudo Music Captioning](https://arxiv.org/abs/2307.16372) (ISMIR 2023), by SeungHeon Doh, Keunwoo Choi, Jongpil Lee, and Juhan Nam. Licensed under **CC BY 4.0**.
+
+```bibtex
+@article{doh2023lp,
+  title={LP-MusicCaps: LLM-Based Pseudo Music Captioning},
+  author={Doh, SeungHeon and Choi, Keunwoo and Lee, Jongpil and Nam, Juhan},
+  journal={arXiv preprint arXiv:2307.16372},
+  year={2023}
+}
+```
+
+### MTG-Jamendo
+
+Audio and tags from [The MTG-Jamendo Dataset for Automatic Music Tagging](https://mtg.github.io/mtg-jamendo-dataset/) (ICML 2019 ML4MD Workshop), by Dmitry Bogdanov, Minz Won, Philip Tovstogan, Alastair Porter, and Xavier Serra (Music Technology Group, Universitat Pompeu Fabra). Metadata is licensed under **CC BY-NC-SA 4.0**; audio files carry individual CC licenses. Usage is limited to non-commercial research and academic purposes.
+
+```bibtex
+@conference{bogdanov2019mtg,
+  author    = {Bogdanov, Dmitry and Won, Minz and Tovstogan, Philip and Porter, Alastair and Serra, Xavier},
+  title     = {The MTG-Jamendo Dataset for Automatic Music Tagging},
+  booktitle = {Machine Learning for Music Discovery Workshop, ICML 2019},
+  year      = {2019},
+  address   = {Long Beach, CA, United States}
+}
+```
 
 ## Future direction
 
