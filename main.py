@@ -29,11 +29,10 @@ def _cmd_ingest(args: argparse.Namespace) -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     ingest(
         data_dir=args.data_dir,
-        fma_subset=args.fma_subset,
-        max_samples_sdd=args.max_samples_sdd,
-        max_samples_fma=args.max_samples_fma,
-        sdd_only=args.sdd_only,
-        fma_only=args.fma_only,
+        max_samples_lp=args.max_samples_lp,
+        max_samples_jamendo=args.max_samples_jamendo,
+        lp_only=args.lp_only,
+        jamendo_only=args.jamendo_only,
     )
 
 
@@ -84,7 +83,7 @@ def main() -> None:
     # ingest
     p_ingest = subparsers.add_parser(
         "ingest",
-        help="Download SDD + FMA datasets",
+        help="Download LP-MusicCaps + Jamendo datasets",
     )
     p_ingest.add_argument(
         "--data-dir",
@@ -92,32 +91,26 @@ def main() -> None:
         help="Root data directory (default: data)",
     )
     p_ingest.add_argument(
-        "--fma-subset",
-        default="small",
-        choices=["small", "medium"],
-        help="FMA subset to download (default: small)",
-    )
-    p_ingest.add_argument(
-        "--max-samples-sdd",
+        "--max-samples-lp",
         type=int,
         default=None,
-        help="Limit number of SDD samples",
+        help="Limit number of LP-MusicCaps samples",
     )
     p_ingest.add_argument(
-        "--max-samples-fma",
+        "--max-samples-jamendo",
         type=int,
         default=None,
-        help="Limit number of FMA samples",
+        help="Limit number of Jamendo samples",
     )
     p_ingest.add_argument(
-        "--sdd-only",
+        "--lp-only",
         action="store_true",
-        help="Only ingest Song Describer Dataset",
+        help="Only ingest LP-MusicCaps dataset",
     )
     p_ingest.add_argument(
-        "--fma-only",
+        "--jamendo-only",
         action="store_true",
-        help="Only ingest FMA dataset",
+        help="Only ingest MTG-Jamendo dataset",
     )
     p_ingest.set_defaults(func=_cmd_ingest)
 

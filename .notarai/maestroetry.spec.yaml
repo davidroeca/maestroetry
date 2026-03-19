@@ -19,23 +19,21 @@ behaviors:
   - name: contrastive_training
     given: a batch of N paired (text, audio) examples
     then: InfoNCE loss drives matched pairs to high cosine similarity and unmatched pairs apart
-  - name: ingest_sdd
+  - name: ingest_lp_musiccaps
+    given: a data directory, optional max_samples limit, and dataset split
+    then: loads LP-MusicCaps-MTT from HuggingFace, picks one of four caption
+      variants at random per track, writes audio to 16kHz mono WAV, and returns
+      manifest rows with source=lp_musiccaps
+  - name: ingest_jamendo
     given: a data directory and optional max_samples limit
-    then: downloads the Song Describer Dataset CSV from Zenodo, resolves audio
-      for each track ID by checking locally-extracted FMA subsets first, then
-      fetching any missing tracks by cascading through remote fma_large,
-      fma_medium, and fma_small archives via HTTP range requests; converts to
-      16kHz mono wav and writes manifest rows with source=sdd
-  - name: ingest_fma
-    given: a data directory, FMA subset name, and optional max_samples limit
-    then: downloads FMA audio archive and metadata, generates descriptive
-      captions from metadata fields (genre, title, tags) using natural-language
-      templates, converts audio to 16kHz mono wav, and writes manifest rows
-      with source=fma
+    then: loads MTG-Jamendo from HuggingFace, generates descriptive captions
+      from genre/instrument/mood_theme tags using natural-language templates,
+      writes audio to 16kHz mono WAV, and returns manifest rows with
+      source=jamendo
   - name: ingest
     given: a data directory and configuration options for both data sources
-    then: orchestrates ingest_sdd and ingest_fma, producing a unified
-      manifest.csv with audio_path, text, and source columns
+    then: orchestrates ingest_lp_musiccaps and ingest_jamendo, producing a
+      unified manifest.csv with audio_path, text, and source columns
 
 constraints:
   - Base encoders (text and audio) remain frozen during training
@@ -49,6 +47,15 @@ invariants:
   - Frozen encoder weights are never modified during training
 
 decisions:
+  - date: "2026-03-18"
+    choice: Replace SDD+FMA ingest with LP-MusicCaps-MTT + MTG-Jamendo
+    rationale: >
+      SDD is eval-only and shouldn't be used for training. FMA captions are
+      low-quality templates. LP-MusicCaps provides ~3K tracks with LLM-generated
+      captions and bundled audio. MTG-Jamendo provides ~10.5K tracks with
+      genre/instrument/mood tags for programmatic caption generation. Total
+      ~13.5K training pairs (up from ~9K), all CC-licensed and fetched via
+      HuggingFace datasets library.
   - date: "2026-03-16"
     choice: Replace MusicCaps/YouTube ingest with Song Describer Dataset + FMA
     rationale: >

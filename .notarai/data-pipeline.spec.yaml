@@ -23,9 +23,9 @@ constraints:
   - Audio resampled to consistent sample rate before conversion
   - Cached spectrograms stored as .pt tensor files
   - Dataset reads from a CSV manifest with audio_path and text columns
-  - Manifest includes an optional source column (sdd or fma) to distinguish data origin
-  - "Two-tier data strategy SDD provides human-written captions (~1K tracks),
-    FMA provides programmatic captions from metadata (up to 8K+ tracks)"
+  - Manifest includes a source column (lp_musiccaps or jamendo) to distinguish data origin
+  - "Two-tier data strategy: LP-MusicCaps provides LLM-generated captions (~3K tracks),
+    Jamendo provides programmatic captions from genre/instrument/mood tags (~10.5K tracks)"
 
 invariants:
   - Spectrogram output is a 2D tensor (n_mels, time_frames)

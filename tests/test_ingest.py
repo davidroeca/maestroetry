@@ -1,4 +1,4 @@
-"""Tests for the SDD + FMA ingest pipeline."""
+"""Tests for the LP-MusicCaps + Jamendo ingest pipeline."""
 
 from __future__ import annotations
 
@@ -7,15 +7,16 @@ import random
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 from maestroetry.ingest import (
-    _fma_track_id_to_path,
+    _save_audio_array_as_wav,
     build_caption,
     ingest,
 )
 
 
 class TestBuildCaption:
-    """Tests for caption generation from FMA metadata."""
+    """Tests for caption generation from metadata."""
 
     def test_single_genre_with_tags(self) -> None:
         random.seed(42)
@@ -30,14 +31,18 @@ class TestBuildCaption:
     def test_empty_genres_uses_fallback(self) -> None:
         random.seed(0)
         caption = build_caption(
-            genres=[], title="Untitled", tags=["piano"],
+            genres=[],
+            title="Untitled",
+            tags=["piano"],
         )
         assert "unknown genre" in caption
 
     def test_empty_tags_uses_fallback(self) -> None:
         random.seed(0)
         caption = build_caption(
-            genres=["Rock"], title="Song", tags=[],
+            genres=["Rock"],
+            title="Song",
+            tags=[],
         )
         assert "varied instrumentation" in caption
 
@@ -58,24 +63,36 @@ class TestBuildCaption:
         assert len(result) > 0
 
 
-class TestFmaTrackIdToPath:
-    """Tests for FMA track ID path resolution."""
+class TestSaveAudioArrayAsWav:
+    """Tests for writing numpy arrays to WAV files."""
 
-    def test_existing_track(self, tmp_path: Path) -> None:
-        # Create the expected FMA directory structure
-        subdir = tmp_path / "002"
-        subdir.mkdir()
-        mp3 = subdir / "002345.mp3"
-        mp3.write_bytes(b"fake mp3")
+    def test_writes_valid_wav(self, tmp_path: Path) -> None:
+        import soundfile as sf
 
-        result = _fma_track_id_to_path(2345, tmp_path)
-        assert result == mp3
+        audio = np.sin(2 * np.pi * 440 * np.arange(16000) / 16000).astype(
+            np.float32
+        )
+        dest = tmp_path / "test.wav"
 
-    def test_missing_track_returns_none(
-        self, tmp_path: Path,
-    ) -> None:
-        result = _fma_track_id_to_path(999999, tmp_path)
-        assert result is None
+        _save_audio_array_as_wav(audio, 16000, dest)
+
+        assert dest.exists()
+        data, sr = sf.read(str(dest))
+        assert sr == 16000
+        assert len(data) == 16000
+
+    def test_resamples_non_16k(self, tmp_path: Path) -> None:
+        import soundfile as sf
+
+        # 1 second at 22050 Hz
+        audio = np.zeros(22050, dtype=np.float32)
+        dest = tmp_path / "resampled.wav"
+
+        _save_audio_array_as_wav(audio, 22050, dest)
+
+        assert dest.exists()
+        data, sr = sf.read(str(dest))
+        assert sr == 16000
 
 
 class TestManifestWriting:
@@ -84,29 +101,29 @@ class TestManifestWriting:
     def test_manifest_csv_format(self, tmp_path: Path) -> None:
         """Verify manifest has correct columns when both
         ingest functions return rows."""
-        mock_sdd_rows = [
+        mock_lp_rows = [
             {
-                "audio_path": "data/audio/sdd/000001.wav",
-                "text": "A mellow jazz tune",
-                "source": "sdd",
+                "audio_path": "data/audio/lp_musiccaps/000001.wav",
+                "text": "A mellow jazz tune with piano",
+                "source": "lp_musiccaps",
             },
         ]
-        mock_fma_rows = [
+        mock_jamendo_rows = [
             {
-                "audio_path": "data/audio/fma/000100.wav",
+                "audio_path": "data/audio/jamendo/000100.wav",
                 "text": "A Rock track with varied instrumentation",
-                "source": "fma",
+                "source": "jamendo",
             },
         ]
 
         with (
             patch(
-                "maestroetry.ingest.ingest_sdd",
-                return_value=mock_sdd_rows,
+                "maestroetry.ingest.ingest_lp_musiccaps",
+                return_value=mock_lp_rows,
             ),
             patch(
-                "maestroetry.ingest.ingest_fma",
-                return_value=mock_fma_rows,
+                "maestroetry.ingest.ingest_jamendo",
+                return_value=mock_jamendo_rows,
             ),
         ):
             ingest(data_dir=tmp_path)
@@ -124,37 +141,37 @@ class TestManifestWriting:
             "text",
             "source",
         }
-        assert rows[0]["source"] == "sdd"
-        assert rows[1]["source"] == "fma"
+        assert rows[0]["source"] == "lp_musiccaps"
+        assert rows[1]["source"] == "jamendo"
 
-    def test_sdd_only_flag(self, tmp_path: Path) -> None:
+    def test_lp_only_flag(self, tmp_path: Path) -> None:
         with (
             patch(
-                "maestroetry.ingest.ingest_sdd",
+                "maestroetry.ingest.ingest_lp_musiccaps",
                 return_value=[],
-            ) as mock_sdd,
+            ) as mock_lp,
             patch(
-                "maestroetry.ingest.ingest_fma",
+                "maestroetry.ingest.ingest_jamendo",
                 return_value=[],
-            ) as mock_fma,
+            ) as mock_jamendo,
         ):
-            ingest(data_dir=tmp_path, sdd_only=True)
+            ingest(data_dir=tmp_path, lp_only=True)
 
-        mock_sdd.assert_called_once()
-        mock_fma.assert_not_called()
+        mock_lp.assert_called_once()
+        mock_jamendo.assert_not_called()
 
-    def test_fma_only_flag(self, tmp_path: Path) -> None:
+    def test_jamendo_only_flag(self, tmp_path: Path) -> None:
         with (
             patch(
-                "maestroetry.ingest.ingest_sdd",
+                "maestroetry.ingest.ingest_lp_musiccaps",
                 return_value=[],
-            ) as mock_sdd,
+            ) as mock_lp,
             patch(
-                "maestroetry.ingest.ingest_fma",
+                "maestroetry.ingest.ingest_jamendo",
                 return_value=[],
-            ) as mock_fma,
+            ) as mock_jamendo,
         ):
-            ingest(data_dir=tmp_path, fma_only=True)
+            ingest(data_dir=tmp_path, jamendo_only=True)
 
-        mock_sdd.assert_not_called()
-        mock_fma.assert_called_once()
+        mock_lp.assert_not_called()
+        mock_jamendo.assert_called_once()
