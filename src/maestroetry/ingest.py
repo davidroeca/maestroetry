@@ -160,13 +160,15 @@ def ingest_lp_musiccaps(
         wav_path = audio_dir / f"{i:06d}.wav"
         if not wav_path.exists():
             audio_struct = pa_table["audio"][i].as_py()
-            raw = audio_struct["bytes"]
-            audio_array, sr = sf.read(io.BytesIO(raw))
-            _save_audio_array_as_wav(
-                np.array(audio_array, dtype=np.float32),
-                sr,
-                wav_path,
-            )
+            if "array" in audio_struct:
+                # Stored as decoded float array
+                audio_array = np.array(audio_struct["array"], dtype=np.float32)
+                sr = audio_struct["sampling_rate"]
+            else:
+                # Stored as encoded bytes
+                audio_array, sr = sf.read(io.BytesIO(audio_struct["bytes"]))
+                audio_array = np.array(audio_array, dtype=np.float32)
+            _save_audio_array_as_wav(audio_array, sr, wav_path)
 
         caption = random.choice(pa_table["texts"][i].as_py())
         rows.append(
@@ -224,13 +226,15 @@ def ingest_jamendo(
         wav_path = audio_dir / f"{i:06d}.wav"
         if not wav_path.exists():
             audio_struct = pa_table["audio"][i].as_py()
-            raw = audio_struct["bytes"]
-            audio_array, sr = sf.read(io.BytesIO(raw))
-            _save_audio_array_as_wav(
-                np.array(audio_array, dtype=np.float32),
-                sr,
-                wav_path,
-            )
+            if "array" in audio_struct:
+                # Stored as decoded float array
+                audio_array = np.array(audio_struct["array"], dtype=np.float32)
+                sr = audio_struct["sampling_rate"]
+            else:
+                # Stored as encoded bytes
+                audio_array, sr = sf.read(io.BytesIO(audio_struct["bytes"]))
+                audio_array = np.array(audio_array, dtype=np.float32)
+            _save_audio_array_as_wav(audio_array, sr, wav_path)
 
         caption = build_caption(
             genres=pa_table["genre"][i].as_py(),
