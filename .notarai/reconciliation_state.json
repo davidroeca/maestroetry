@@ -2,8 +2,8 @@
   "schema_version": "1",
   "cli_version": "0.5.0",
   "last_reconciliation": {
-    "timestamp": "1773890768Z",
-    "git_hash": "4662304facc152e4c85b41ba4f234f7eceb925dd",
+    "timestamp": "1773893924Z",
+    "git_hash": "68f6a5a4bb7aede70ea82c39eae3fda773f8c29d",
     "branch": "main"
   },
   "file_fingerprints": {
@@ -35,7 +35,7 @@
       "blake3": "d2e1f69ef22092e7472b285dba3c80800f24aff0e7f7dbef55f23be709c460a6"
     },
     "src/maestroetry/ingest.py": {
-      "blake3": "e2a6b40842847da3110c146c9ef96b3a709fbea8e7fd140d5c044cae73d43b2b"
+      "blake3": "7296afc5eae0e6749038b21b056c0b6ac6d782ff4eb02841f7c3f413d281c5dc"
     },
     "src/maestroetry/loss.py": {
       "blake3": "6999fdd487f84469ed105e6c5b502705c4149d4ee55cf2ac5db08dc43f676e57"
