@@ -136,7 +136,9 @@ def ingest_lp_musiccaps(
     Returns:
         List of manifest row dicts with audio_path, text, source.
     """
-    from datasets import load_dataset
+    import io
+
+    from datasets import Audio, load_dataset
 
     data_dir = Path(data_dir)
     audio_dir = data_dir / "audio" / "lp_musiccaps"
@@ -147,6 +149,8 @@ def ingest_lp_musiccaps(
         "mulab-mir/lp-music-caps-magnatagatune-3k",
         split=split,
     )
+    # Skip auto-decoding (requires torchcodec); decode raw bytes with soundfile instead.
+    ds = ds.cast_column("audio", Audio(decode=False))
 
     rows: list[dict[str, str]] = []
     for i, row in enumerate(ds):
@@ -155,10 +159,14 @@ def ingest_lp_musiccaps(
 
         wav_path = audio_dir / f"{i:06d}.wav"
         if not wav_path.exists():
-            audio = row["audio"]
+            audio_data = row["audio"]
+            raw = (
+                audio_data.get("bytes") or open(audio_data["path"], "rb").read()
+            )
+            audio_array, sr = sf.read(io.BytesIO(raw))
             _save_audio_array_as_wav(
-                np.array(audio["array"], dtype=np.float32),
-                audio["sampling_rate"],
+                np.array(audio_array, dtype=np.float32),
+                sr,
                 wav_path,
             )
 
@@ -194,7 +202,9 @@ def ingest_jamendo(
     Returns:
         List of manifest row dicts with audio_path, text, source.
     """
-    from datasets import load_dataset
+    import io
+
+    from datasets import Audio, load_dataset
 
     data_dir = Path(data_dir)
     audio_dir = data_dir / "audio" / "jamendo"
@@ -205,6 +215,8 @@ def ingest_jamendo(
         "vtsouval/mtg_jamendo_autotagging",
         split="train",
     )
+    # Skip auto-decoding (requires torchcodec); decode raw bytes with soundfile instead.
+    ds = ds.cast_column("audio", Audio(decode=False))
 
     rows: list[dict[str, str]] = []
     for i, row in enumerate(ds):
@@ -213,10 +225,14 @@ def ingest_jamendo(
 
         wav_path = audio_dir / f"{i:06d}.wav"
         if not wav_path.exists():
-            audio = row["audio"]
+            audio_data = row["audio"]
+            raw = (
+                audio_data.get("bytes") or open(audio_data["path"], "rb").read()
+            )
+            audio_array, sr = sf.read(io.BytesIO(raw))
             _save_audio_array_as_wav(
-                np.array(audio["array"], dtype=np.float32),
-                audio["sampling_rate"],
+                np.array(audio_array, dtype=np.float32),
+                sr,
                 wav_path,
             )
 
