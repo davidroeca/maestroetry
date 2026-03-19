@@ -124,8 +124,9 @@ def ingest_lp_musiccaps(
 ) -> list[dict[str, str]]:
     """Download LP-MusicCaps-MTT and extract audio + captions.
 
-    Each row has an ``audio`` dict (array + sampling_rate) and
-    ``texts`` (list of 4 caption variants). One caption is picked
+    Audio bytes are read directly from the underlying PyArrow table
+    to avoid torchcodec. Each row has an ``audio`` struct (bytes)
+    and ``texts`` (list of 4 caption variants); one caption is picked
     at random for diversity.
 
     Args:
@@ -138,7 +139,7 @@ def ingest_lp_musiccaps(
     """
     import io
 
-    from datasets import Audio, load_dataset
+    from datasets import load_dataset
 
     data_dir = Path(data_dir)
     audio_dir = data_dir / "audio" / "lp_musiccaps"
@@ -149,20 +150,19 @@ def ingest_lp_musiccaps(
         "mulab-mir/lp-music-caps-magnatagatune-3k",
         split=split,
     )
-    # Skip auto-decoding (requires torchcodec); decode raw bytes with soundfile instead.
-    ds = ds.cast_column("audio", Audio(decode=False))
+    # Read raw bytes directly from the underlying PyArrow table to avoid
+    # any audio encoding/decoding step (which requires torchcodec).
+    pa_table = ds.data.table
+    n = len(pa_table) if max_samples is None else min(len(pa_table), max_samples)
 
     rows: list[dict[str, str]] = []
-    for i, row in enumerate(ds):
-        if max_samples is not None and i >= max_samples:
-            break
-
+    for i in range(n):
         wav_path = audio_dir / f"{i:06d}.wav"
         if not wav_path.exists():
-            audio_data = row["audio"]
-            raw = (
-                audio_data.get("bytes") or open(audio_data["path"], "rb").read()
-            )
+            audio_struct = pa_table["audio"][i].as_py()
+            raw = audio_struct.get("bytes") or open(
+                audio_struct["path"], "rb"
+            ).read()
             audio_array, sr = sf.read(io.BytesIO(raw))
             _save_audio_array_as_wav(
                 np.array(audio_array, dtype=np.float32),
@@ -170,7 +170,7 @@ def ingest_lp_musiccaps(
                 wav_path,
             )
 
-        caption = random.choice(row["texts"])
+        caption = random.choice(pa_table["texts"][i].as_py())
         rows.append(
             {
                 "audio_path": str(wav_path),
@@ -191,8 +191,9 @@ def ingest_jamendo(
 ) -> list[dict[str, str]]:
     """Download MTG-Jamendo and generate captions from tags.
 
-    Each row has ``audio``, ``genre`` (list), ``instrument``
-    (list), and ``mood_theme`` (list). Captions are generated
+    Audio bytes are read directly from the underlying PyArrow table
+    to avoid torchcodec. Each row has ``audio`` (bytes), ``genre``,
+    ``instrument``, and ``mood_theme`` lists; captions are generated
     via ``build_caption`` from these tag fields.
 
     Args:
@@ -204,7 +205,7 @@ def ingest_jamendo(
     """
     import io
 
-    from datasets import Audio, load_dataset
+    from datasets import load_dataset
 
     data_dir = Path(data_dir)
     audio_dir = data_dir / "audio" / "jamendo"
@@ -215,20 +216,19 @@ def ingest_jamendo(
         "vtsouval/mtg_jamendo_autotagging",
         split="train",
     )
-    # Skip auto-decoding (requires torchcodec); decode raw bytes with soundfile instead.
-    ds = ds.cast_column("audio", Audio(decode=False))
+    # Read raw bytes directly from the underlying PyArrow table to avoid
+    # any audio encoding/decoding step (which requires torchcodec).
+    pa_table = ds.data.table
+    n = len(pa_table) if max_samples is None else min(len(pa_table), max_samples)
 
     rows: list[dict[str, str]] = []
-    for i, row in enumerate(ds):
-        if max_samples is not None and i >= max_samples:
-            break
-
+    for i in range(n):
         wav_path = audio_dir / f"{i:06d}.wav"
         if not wav_path.exists():
-            audio_data = row["audio"]
-            raw = (
-                audio_data.get("bytes") or open(audio_data["path"], "rb").read()
-            )
+            audio_struct = pa_table["audio"][i].as_py()
+            raw = audio_struct.get("bytes") or open(
+                audio_struct["path"], "rb"
+            ).read()
             audio_array, sr = sf.read(io.BytesIO(raw))
             _save_audio_array_as_wav(
                 np.array(audio_array, dtype=np.float32),
@@ -237,9 +237,10 @@ def ingest_jamendo(
             )
 
         caption = build_caption(
-            genres=row["genre"],
+            genres=pa_table["genre"][i].as_py(),
             title="",
-            tags=row["instrument"] + row["mood_theme"],
+            tags=pa_table["instrument"][i].as_py()
+            + pa_table["mood_theme"][i].as_py(),
         )
         rows.append(
             {
