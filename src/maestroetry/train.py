@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
     from torch.optim.lr_scheduler import LRScheduler
 
     from maestroetry.config import TrainConfig
+
+logger = logging.getLogger(__name__)
 
 
 def _eval_recall(
@@ -69,7 +72,7 @@ def train_one_epoch(
     """
     model.train()
     losses: list[float] = []
-    for spectrograms, texts in dataloader:
+    for i, (spectrograms, texts) in enumerate(dataloader, 1):
         spectrograms = spectrograms.to(device, non_blocking=True)
         optimizer.zero_grad(set_to_none=True)
         with torch.amp.autocast(device_type=device, dtype=torch.bfloat16):
@@ -79,6 +82,8 @@ def train_one_epoch(
         optimizer.step()
         scheduler.step()
         losses.append(loss.item())
+        if i % 20 == 0:
+            logger.info("  batch %d — loss: %.4f", i, loss.item())
     if losses:
         return sum(losses, start=0) / len(losses)
     else:
@@ -180,8 +185,18 @@ def train(config: TrainConfig, resume: str | None = None) -> None:
         start_epoch = load_checkpoint(Path(resume), model, optimizer, scheduler)
 
     ckpt_dir = Path(config.checkpoint_dir)
+    best_ckpt = ckpt_dir / "best.pt"
     writer = SummaryWriter(config.log_dir)
+    logger.info(
+        "Training: %d epochs, %d samples, batch size %d, device %s",
+        config.num_epochs,
+        len(dataset),
+        config.batch_size,
+        config.device,
+    )
+    best_recall: float = -1.0
     for epoch in range(start_epoch, config.num_epochs):
+        logger.info("Epoch %d/%d", epoch + 1, config.num_epochs)
         loss = train_one_epoch(
             model=model,
             dataloader=dataloader,
@@ -189,26 +204,27 @@ def train(config: TrainConfig, resume: str | None = None) -> None:
             scheduler=scheduler,
             device=config.device,
         )
+        logger.info("  mean loss: %.4f", loss)
         writer.add_scalar("loss/train", loss, epoch)
         is_last = epoch == config.num_epochs - 1
         if is_last or (epoch + 1) % config.eval_interval == 0:
             metrics = _eval_recall(model, dataloader, config.device)
+            metrics_str = "  ".join(f"{k}: {v:.4f}" for k, v in metrics.items())
+            logger.info("  %s", metrics_str)
             for key, val in metrics.items():
                 writer.add_scalar(f"metrics/{key}", val, epoch)
-            save_checkpoint(
-                ckpt_dir / f"epoch_{epoch:04d}.pt",
-                model,
-                optimizer,
-                scheduler,
-                epoch,
-            )
-    # Always save a latest checkpoint for easy resuming
-    if config.num_epochs > 0:
-        save_checkpoint(
-            ckpt_dir / "latest.pt",
-            model,
-            optimizer,
-            scheduler,
-            config.num_epochs - 1,
-        )
+            recall = metrics.get("R@1_t2a", 0.0)
+            if recall > best_recall:
+                best_recall = recall
+                save_checkpoint(best_ckpt, model, optimizer, scheduler, epoch)
+                logger.info(
+                    "  best checkpoint updated (R@1=%.4f): %s",
+                    best_recall,
+                    best_ckpt,
+                )
+    logger.info(
+        "Training complete. Best R@1=%.4f, checkpoint: %s",
+        best_recall,
+        best_ckpt,
+    )
     writer.close()

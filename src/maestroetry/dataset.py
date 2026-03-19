@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import csv
+import logging
 from pathlib import Path
 
 import librosa
+import numpy as np
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
+
+logger = logging.getLogger(__name__)
+
+# AST positional embeddings are fixed at 1024 time frames × 128 mel bins.
+# These normalization constants come from ASTFeatureExtractor's defaults.
+_AST_MAX_FRAMES = 1024
+_AST_MEAN = -4.2677393
+_AST_STD = 4.5689974
 
 AUDIO_EXTENSIONS = {
     ".wav",
@@ -42,8 +52,25 @@ def audio_to_mel_spectrogram(
     audio, _ = librosa.load(path, sr=sr, mono=True)
     max_samples = int(max_seconds * sr)
     audio = audio[:max_samples]
-    mel = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=n_mels)
-    return torch.from_numpy(mel)
+    # 25ms window / 10ms hop matches ASTFeatureExtractor defaults.
+    mel = librosa.feature.melspectrogram(
+        y=audio,
+        sr=sr,
+        n_mels=n_mels,
+        n_fft=400,
+        hop_length=160,
+    )
+    log_mel = librosa.power_to_db(mel).T  # (time, n_mels)
+    # Pad or truncate to AST's fixed positional embedding length.
+    t = log_mel.shape[0]
+    if t < _AST_MAX_FRAMES:
+        pad = np.zeros((_AST_MAX_FRAMES - t, n_mels), dtype=log_mel.dtype)
+        log_mel = np.concatenate([log_mel, pad], axis=0)
+    else:
+        log_mel = log_mel[:_AST_MAX_FRAMES]
+    # Normalize with AST's dataset-level statistics.
+    log_mel = (log_mel - _AST_MEAN) / (_AST_STD * 2)
+    return torch.from_numpy(log_mel)
 
 
 def audio_path_to_cache_location(
@@ -81,7 +108,8 @@ def cache_spectrograms(
         for f in Path(audio_dir).rglob("*")
         if f.is_file() and f.suffix in AUDIO_EXTENSIONS
     )
-    for audio_path in iter_audio_paths:
+    logger.info("Caching spectrograms from %s ...", audio_dir)
+    for i, audio_path in enumerate(iter_audio_paths, 1):
         spectrogram = audio_to_mel_spectrogram(
             audio_path,
             n_mels=n_mels,
@@ -95,6 +123,8 @@ def cache_spectrograms(
                 cache_dir=cache_dir,
             ),
         )
+        if i % 500 == 0:
+            logger.info("[%d] spectrograms cached...", i)
 
 
 class AudioTextDataset(Dataset[tuple[Tensor, str]]):

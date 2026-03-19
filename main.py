@@ -10,6 +10,7 @@ def _cmd_train(args: argparse.Namespace) -> None:
     from maestroetry.config import load_config
     from maestroetry.train import train
 
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     overrides: dict[str, str] = {}
     if args.checkpoint_dir:
         overrides["checkpoint_dir"] = args.checkpoint_dir
@@ -20,6 +21,7 @@ def _cmd_train(args: argparse.Namespace) -> None:
 def _cmd_cache_spectrograms(args: argparse.Namespace) -> None:
     from maestroetry.dataset import cache_spectrograms
 
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     cache_spectrograms(args.audio_dir, args.cache_dir)
 
 
