@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import logging
 import random
 import subprocess
@@ -53,6 +54,26 @@ def build_caption(
         tags_str = "varied instrumentation"
     template = random.choice(_CAPTION_TEMPLATES)
     return template.format(genre=genre_str, tags=tags_str)
+
+
+def _decode_audio_struct(audio_struct: dict) -> tuple[np.ndarray, int]:
+    """Decode a PyArrow audio struct to a numpy array and sample rate.
+
+    HuggingFace datasets store audio either as a decoded float array
+    (``{"array": [...], "sampling_rate": int}``) or as encoded bytes
+    (``{"bytes": binary}``). We read the raw PyArrow struct directly
+    to avoid the datasets Audio feature decoder, which pulls in torchcodec.
+
+    Args:
+        audio_struct: Dict from ``pa_table["audio"][i].as_py()``.
+
+    Returns:
+        Tuple of (audio_array float32, sampling_rate).
+    """
+    if "array" in audio_struct:
+        return np.array(audio_struct["array"], dtype=np.float32), audio_struct["sampling_rate"]
+    audio_array, sr = sf.read(io.BytesIO(audio_struct["bytes"]))
+    return np.array(audio_array, dtype=np.float32), int(sr)
 
 
 def _convert_to_wav(src: Path, dst: Path) -> bool:
@@ -124,10 +145,8 @@ def ingest_lp_musiccaps(
 ) -> list[dict[str, str]]:
     """Download LP-MusicCaps-MTT and extract audio + captions.
 
-    Audio bytes are read directly from the underlying PyArrow table
-    to avoid torchcodec. Each row has an ``audio`` struct (bytes)
-    and ``texts`` (list of 4 caption variants); one caption is picked
-    at random for diversity.
+    Each row has an ``audio`` struct and ``texts`` (list of 4 caption
+    variants); one caption is picked at random for diversity.
 
     Args:
         data_dir: Root data directory.
@@ -137,8 +156,6 @@ def ingest_lp_musiccaps(
     Returns:
         List of manifest row dicts with audio_path, text, source.
     """
-    import io
-
     from datasets import load_dataset
 
     data_dir = Path(data_dir)
@@ -150,8 +167,6 @@ def ingest_lp_musiccaps(
         "mulab-mir/lp-music-caps-magnatagatune-3k",
         split=split,
     )
-    # Read raw bytes directly from the underlying PyArrow table to avoid
-    # any audio encoding/decoding step (which requires torchcodec).
     pa_table = ds.data.table
     n = len(pa_table) if max_samples is None else min(len(pa_table), max_samples)
 
@@ -159,15 +174,7 @@ def ingest_lp_musiccaps(
     for i in range(n):
         wav_path = audio_dir / f"{i:06d}.wav"
         if not wav_path.exists():
-            audio_struct = pa_table["audio"][i].as_py()
-            if "array" in audio_struct:
-                # Stored as decoded float array
-                audio_array = np.array(audio_struct["array"], dtype=np.float32)
-                sr = audio_struct["sampling_rate"]
-            else:
-                # Stored as encoded bytes
-                audio_array, sr = sf.read(io.BytesIO(audio_struct["bytes"]))
-                audio_array = np.array(audio_array, dtype=np.float32)
+            audio_array, sr = _decode_audio_struct(pa_table["audio"][i].as_py())
             _save_audio_array_as_wav(audio_array, sr, wav_path)
 
         caption = random.choice(pa_table["texts"][i].as_py())
@@ -191,10 +198,8 @@ def ingest_jamendo(
 ) -> list[dict[str, str]]:
     """Download MTG-Jamendo and generate captions from tags.
 
-    Audio bytes are read directly from the underlying PyArrow table
-    to avoid torchcodec. Each row has ``audio`` (bytes), ``genre``,
-    ``instrument``, and ``mood_theme`` lists; captions are generated
-    via ``build_caption`` from these tag fields.
+    Each row has an ``audio`` struct, ``genre``, ``instrument``, and
+    ``mood_theme`` lists; captions are generated via ``build_caption``.
 
     Args:
         data_dir: Root data directory.
@@ -203,8 +208,6 @@ def ingest_jamendo(
     Returns:
         List of manifest row dicts with audio_path, text, source.
     """
-    import io
-
     from datasets import load_dataset
 
     data_dir = Path(data_dir)
@@ -216,8 +219,6 @@ def ingest_jamendo(
         "vtsouval/mtg_jamendo_autotagging",
         split="train",
     )
-    # Read raw bytes directly from the underlying PyArrow table to avoid
-    # any audio encoding/decoding step (which requires torchcodec).
     pa_table = ds.data.table
     n = len(pa_table) if max_samples is None else min(len(pa_table), max_samples)
 
@@ -225,15 +226,7 @@ def ingest_jamendo(
     for i in range(n):
         wav_path = audio_dir / f"{i:06d}.wav"
         if not wav_path.exists():
-            audio_struct = pa_table["audio"][i].as_py()
-            if "array" in audio_struct:
-                # Stored as decoded float array
-                audio_array = np.array(audio_struct["array"], dtype=np.float32)
-                sr = audio_struct["sampling_rate"]
-            else:
-                # Stored as encoded bytes
-                audio_array, sr = sf.read(io.BytesIO(audio_struct["bytes"]))
-                audio_array = np.array(audio_array, dtype=np.float32)
+            audio_array, sr = _decode_audio_struct(pa_table["audio"][i].as_py())
             _save_audio_array_as_wav(audio_array, sr, wav_path)
 
         caption = build_caption(
