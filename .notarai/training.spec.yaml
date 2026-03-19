@@ -19,8 +19,8 @@ behaviors:
     given: a TrainConfig with all hyperparameters and an optional checkpoint path to resume from
     then: loads encoders, builds model, trains for num_epochs with TensorBoard logging
       for loss and Recall@k metrics; metrics are evaluated every eval_interval epochs
-      and always on the final epoch; saves checkpoints at each eval interval and a
-      latest.pt checkpoint at the end; supports resuming from a prior checkpoint
+      and always on the final epoch; saves a single best.pt checkpoint (overwritten
+      when R@1 improves); supports resuming from a prior checkpoint
   - name: save_checkpoint
     given: a model, optimizer, scheduler, epoch number, and output path
     then: persists model, optimizer, and scheduler state dicts with epoch number to disk

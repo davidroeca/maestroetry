@@ -10,7 +10,8 @@ intent: |
 behaviors:
   - name: audio_to_mel_spectrogram
     given: a path to an audio file, n_mels, sample rate, and max duration
-    then: returns a 2D mel spectrogram tensor of shape (n_mels, time_frames)
+    then: returns a 2D mel spectrogram tensor of shape (time_frames, n_mels),
+      padded/truncated to 1024 time frames and normalized for AST
   - name: cache_spectrograms
     given: a directory of audio files and a cache directory
     then: converts all audio files to mel spectrograms and saves as .pt files in the cache directory
@@ -28,7 +29,7 @@ constraints:
     Jamendo provides programmatic captions from genre/instrument/mood tags (~10.5K tracks)"
 
 invariants:
-  - Spectrogram output is a 2D tensor (n_mels, time_frames)
+  - Spectrogram output is a 2D tensor (time_frames, n_mels) of shape (1024, 128)
   - Each Dataset item returns a (spectrogram_tensor, text_string) tuple
   - Cached spectrograms match their source audio content
 
