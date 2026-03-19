@@ -160,9 +160,7 @@ def ingest_lp_musiccaps(
         wav_path = audio_dir / f"{i:06d}.wav"
         if not wav_path.exists():
             audio_struct = pa_table["audio"][i].as_py()
-            raw = audio_struct.get("bytes") or open(
-                audio_struct["path"], "rb"
-            ).read()
+            raw = audio_struct["bytes"]
             audio_array, sr = sf.read(io.BytesIO(raw))
             _save_audio_array_as_wav(
                 np.array(audio_array, dtype=np.float32),
@@ -226,9 +224,7 @@ def ingest_jamendo(
         wav_path = audio_dir / f"{i:06d}.wav"
         if not wav_path.exists():
             audio_struct = pa_table["audio"][i].as_py()
-            raw = audio_struct.get("bytes") or open(
-                audio_struct["path"], "rb"
-            ).read()
+            raw = audio_struct["bytes"]
             audio_array, sr = sf.read(io.BytesIO(raw))
             _save_audio_array_as_wav(
                 np.array(audio_array, dtype=np.float32),
