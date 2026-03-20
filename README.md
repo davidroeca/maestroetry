@@ -74,17 +74,21 @@ poe run python main.py train --checkpoint-dir /content/drive/MyDrive/maestroetry
 
 # Resume training from a checkpoint
 poe run python main.py train --resume checkpoints/best.pt
+
+# Resume with only model weights (fresh optimizer/scheduler, for changed hyperparameters)
+poe run python main.py train --resume checkpoints/best.pt --weights-only
 ```
 
-Training saves a single `best.pt` checkpoint, overwritten whenever Recall@1 improves. Each checkpoint includes model weights, optimizer state, scheduler state, and the current epoch, so training can be resumed exactly where it left off. Only the projection heads are saved (~10–15 MB); the frozen encoders are excluded.
+Training saves a single `best.pt` checkpoint, overwritten whenever Recall@1 improves. Each checkpoint includes trainable parameters (projection heads and temperature), optimizer state, scheduler state, and the current epoch, so training can be resumed exactly where it left off. Frozen encoder weights are excluded, keeping checkpoints small (~10-15 MB). Use `--weights-only` when resuming with changed hyperparameters (e.g. learning rate, batch size) to load the learned projection weights with a fresh optimizer and scheduler.
 
 ## Hyperparameters
 
 | Parameter | Default |
 |-----------|---------|
 | Shared embedding dim | 256 |
-| Batch size | 64 |
-| Learning rate | 3e-4 (AdamW) |
+| Batch size | 100 |
+| Gradient accumulation steps | 4 (effective batch 400) |
+| Learning rate | 5e-4 (AdamW) |
 | Temperature | 0.07 (learnable) |
 | Mel bins | 128 |
 | Max audio length | 10s |

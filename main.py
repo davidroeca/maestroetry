@@ -15,7 +15,7 @@ def _cmd_train(args: argparse.Namespace) -> None:
     if args.checkpoint_dir:
         overrides["checkpoint_dir"] = args.checkpoint_dir
     config = load_config(args.config, **overrides)
-    train(config, resume=args.resume)
+    train(config, resume=args.resume, weights_only=args.weights_only)
 
 
 def _cmd_cache_spectrograms(args: argparse.Namespace) -> None:
@@ -62,6 +62,11 @@ def main() -> None:
         "--resume",
         default=None,
         help="Path to checkpoint file to resume training from",
+    )
+    p_train.add_argument(
+        "--weights-only",
+        action="store_true",
+        help="Load only model weights from checkpoint, skip optimizer/scheduler",
     )
     p_train.set_defaults(func=_cmd_train)
 

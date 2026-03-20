@@ -23,19 +23,25 @@ behaviors:
       when R@1 improves); supports resuming from a prior checkpoint
   - name: save_checkpoint
     given: a model, optimizer, scheduler, epoch number, and output path
-    then: persists model, optimizer, and scheduler state dicts with epoch number to disk
+    then: persists only trainable parameter state (projection heads and temperature),
+      optimizer state, and scheduler state with epoch number to disk; frozen encoder
+      weights are excluded to keep checkpoints small
   - name: load_checkpoint
-    given: a checkpoint file path, model, optimizer, and scheduler
-    then: restores all state dicts from disk and returns the next epoch to resume from
+    given: a checkpoint file path, model, optimizer, scheduler, and optional
+      model_weights_only flag
+    then: restores model weights from disk (with strict=False for compatibility
+      with both slim and full checkpoints); when model_weights_only is false,
+      also restores optimizer and scheduler state and returns the next epoch;
+      when true, skips optimizer/scheduler and returns epoch 0
   - name: recall_at_k
     given: paired text and audio embeddings and k values
     then: returns dict with Recall@k metrics for both retrieval directions in [0.0, 1.0]
 
 constraints:
   - InfoNCE loss is symmetric (both directions averaged)
-  - "Optimizer: AdamW with lr=3e-4 and linear warmup"
+  - "Optimizer: AdamW with lr=5e-4 and linear warmup"
   - Gradients flow only through projection heads and temperature
-  - "Default batch size: 64"
+  - "Default batch size: 100"
   - TensorBoard logging for loss and metrics
   - Recall@k metrics are logged every eval_interval epochs (and always on the final epoch)
   - "checkpoint_dir is configurable via TrainConfig and CLI override"

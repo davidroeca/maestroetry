@@ -9,13 +9,13 @@ text_encoder_name = "all-MiniLM-L6-v2"
 audio_encoder_name = "MIT/ast-finetuned-audioset-10-10-0.4593"
 
 # Training
-batch_size = 64
-learning_rate = 3e-4
+batch_size = 100
+learning_rate = 5e-4
 weight_decay = 0.01
 warmup_steps = 100
-num_epochs = 20
+num_epochs = 100
 eval_interval = 5
-grad_accumulation_steps = 1
+grad_accumulation_steps = 4
 
 # Audio preprocessing
 n_mels = 128

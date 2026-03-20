@@ -53,12 +53,14 @@ def train_one_epoch(
     optimizer: Optimizer,
     scheduler: LRScheduler,
     device: str = "cuda",
+    grad_accumulation_steps: int = 1,
 ) -> float:
     """Run one training epoch.
 
     For each batch: encode text and audio through the model,
     compute symmetric InfoNCE loss, backpropagate through
-    projection heads only, and step the optimizer.
+    projection heads only, and step the optimizer every
+    ``grad_accumulation_steps`` batches.
 
     Args:
         model: The ContrastiveModel to train.
@@ -66,28 +68,51 @@ def train_one_epoch(
         optimizer: AdamW optimizer over trainable params.
         scheduler: Learning rate scheduler (linear warmup).
         device: Device to run on.
+        grad_accumulation_steps: Number of batches to accumulate
+            gradients over before each optimizer step.
 
     Returns:
         Mean loss over the epoch.
     """
     model.train()
     losses: list[float] = []
+    optimizer.zero_grad(set_to_none=True)
     for i, (spectrograms, texts) in enumerate(dataloader, 1):
         spectrograms = spectrograms.to(device, non_blocking=True)
-        optimizer.zero_grad(set_to_none=True)
         with torch.amp.autocast(device_type=device, dtype=torch.bfloat16):
             text_embeds, audio_embeds, temperature = model(texts, spectrograms)
             loss = info_nce_loss(text_embeds, audio_embeds, temperature)
+            loss = loss / grad_accumulation_steps
         loss.backward()
+        if i % grad_accumulation_steps == 0:
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad(set_to_none=True)
+        losses.append(loss.item() * grad_accumulation_steps)
+        if i % 20 == 0:
+            logger.info("  batch %d - loss: %.4f", i, losses[-1])
+    # Handle leftover batches that didn't complete a full
+    # accumulation cycle.
+    if len(dataloader) % grad_accumulation_steps != 0:
         optimizer.step()
         scheduler.step()
-        losses.append(loss.item())
-        if i % 20 == 0:
-            logger.info("  batch %d — loss: %.4f", i, loss.item())
+        optimizer.zero_grad(set_to_none=True)
     if losses:
         return sum(losses, start=0) / len(losses)
     else:
         return 0.0
+
+
+def _trainable_state_dict(model: ContrastiveModel) -> dict[str, torch.Tensor]:
+    """Return state dict containing only trainable parameters."""
+    trainable_keys = {
+        name for name, p in model.named_parameters() if p.requires_grad
+    }
+    return {
+        k: v
+        for k, v in model.state_dict().items()
+        if k in trainable_keys
+    }
 
 
 def save_checkpoint(
@@ -97,12 +122,16 @@ def save_checkpoint(
     scheduler: torch.optim.lr_scheduler.LRScheduler,
     epoch: int,
 ) -> None:
-    """Save model checkpoint to disk."""
+    """Save model checkpoint to disk.
+
+    Only trainable parameters (projection heads and temperature)
+    are saved; frozen encoder weights are excluded.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
             "epoch": epoch,
-            "model": model.state_dict(),
+            "model": _trainable_state_dict(model),
             "optimizer": optimizer.state_dict(),
             "scheduler": scheduler.state_dict(),
         },
@@ -115,16 +144,39 @@ def load_checkpoint(
     model: ContrastiveModel,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler.LRScheduler,
+    *,
+    model_weights_only: bool = False,
 ) -> int:
-    """Load checkpoint and return the next epoch to train."""
+    """Load checkpoint and return the next epoch to train.
+
+    Args:
+        path: Path to checkpoint file.
+        model: Model to load weights into.
+        optimizer: Optimizer to restore state into.
+        scheduler: Scheduler to restore state into.
+        model_weights_only: If True, load only model weights and
+            skip optimizer/scheduler state. Useful when resuming
+            with changed hyperparameters.
+
+    Returns:
+        The next epoch to train from.
+    """
     ckpt = torch.load(path, weights_only=False)
-    model.load_state_dict(ckpt["model"])
+    model.load_state_dict(ckpt["model"], strict=False)
+    if model_weights_only:
+        logger.info("Loaded model weights only (skipping optimizer/scheduler)")
+        return 0
     optimizer.load_state_dict(ckpt["optimizer"])
     scheduler.load_state_dict(ckpt["scheduler"])
     return ckpt["epoch"] + 1
 
 
-def train(config: TrainConfig, resume: str | None = None) -> None:
+def train(
+    config: TrainConfig,
+    resume: str | None = None,
+    *,
+    weights_only: bool = False,
+) -> None:
     """Full training entrypoint.
 
     Loads encoders, builds the ContrastiveModel, sets up data
@@ -134,6 +186,8 @@ def train(config: TrainConfig, resume: str | None = None) -> None:
     Args:
         config: Training configuration.
         resume: Path to a checkpoint file to resume from.
+        weights_only: If True, load only model weights from the
+            checkpoint, ignoring optimizer/scheduler state.
     """
     torch.set_float32_matmul_precision("high")
     text_encoder, text_embed_dim = load_text_encoder(
@@ -182,16 +236,25 @@ def train(config: TrainConfig, resume: str | None = None) -> None:
     )
     start_epoch = 0
     if resume:
-        start_epoch = load_checkpoint(Path(resume), model, optimizer, scheduler)
+        start_epoch = load_checkpoint(
+            Path(resume),
+            model,
+            optimizer,
+            scheduler,
+            model_weights_only=weights_only,
+        )
 
     ckpt_dir = Path(config.checkpoint_dir)
     best_ckpt = ckpt_dir / "best.pt"
     writer = SummaryWriter(config.log_dir)
+    effective_batch = config.batch_size * config.grad_accumulation_steps
     logger.info(
-        "Training: %d epochs, %d samples, batch size %d, device %s",
+        "Training: %d epochs, %d samples, batch size %d"
+        " (effective %d), device %s",
         config.num_epochs,
         len(dataset),
         config.batch_size,
+        effective_batch,
         config.device,
     )
     best_recall: float = -1.0
@@ -203,6 +266,7 @@ def train(config: TrainConfig, resume: str | None = None) -> None:
             optimizer=optimizer,
             scheduler=scheduler,
             device=config.device,
+            grad_accumulation_steps=config.grad_accumulation_steps,
         )
         logger.info("  mean loss: %.4f", loss)
         writer.add_scalar("loss/train", loss, epoch)
