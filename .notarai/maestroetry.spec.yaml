@@ -36,10 +36,13 @@ behaviors:
       unified manifest.csv with audio_path, text, and source columns
 
 constraints:
-  - Base encoders (text and audio) remain frozen during training
+  - Text encoder is always frozen; audio encoder is frozen by default but
+    optionally the top N layers can be unfrozen for fine-tuning
   - Shared embedding space is 256-dimensional with L2 normalization
   - Must be trainable on a single consumer GPU or free Colab instance
-  - Projection heads are the only trainable components
+  - Projection heads and temperature are always trainable; when
+    unfreeze_audio_layers > 0, the top N audio encoder layers are
+    also trainable at a separate learning rate
 
 invariants:
   - Matched text-audio pairs have higher cosine similarity than unmatched pairs after training

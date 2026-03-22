@@ -79,6 +79,8 @@ poe run python main.py train --resume checkpoints/best.pt
 poe run python main.py train --resume checkpoints/best.pt --weights-only
 ```
 
+**Fine-tuning the audio encoder:** Set `unfreeze_audio_layers` to unfreeze the top N AST transformer layers. These train at `encoder_learning_rate` (default 1e-5) while projection heads use the main `learning_rate`. Gradient clipping is controlled by `max_grad_norm` (default 1.0). This increases VRAM usage; reduce `batch_size` if needed.
+
 Training saves a single `best.pt` checkpoint, overwritten whenever Recall@1 improves. Each checkpoint includes trainable parameters (projection heads and temperature), optimizer state, scheduler state, and the current epoch, so training can be resumed exactly where it left off. Frozen encoder weights are excluded, keeping checkpoints small (~10-15 MB). Use `--weights-only` when resuming with changed hyperparameters (e.g. learning rate, batch size) to load the learned projection weights with a fresh optimizer and scheduler.
 
 ## Hyperparameters
@@ -86,10 +88,15 @@ Training saves a single `best.pt` checkpoint, overwritten whenever Recall@1 impr
 | Parameter | Default |
 |-----------|---------|
 | Shared embedding dim | 256 |
+| Projection depth | 3 |
+| Projection dropout | 0.1 |
 | Batch size | 100 |
 | Gradient accumulation steps | 4 (effective batch 400) |
 | Learning rate | 5e-4 (AdamW) |
 | Temperature | 0.07 (learnable) |
+| Unfrozen audio layers | 0 |
+| Encoder learning rate | 1e-5 |
+| Max gradient norm | 1.0 |
 | Mel bins | 128 |
 | Max audio length | 10s |
 

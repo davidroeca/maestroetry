@@ -20,25 +20,40 @@ if TYPE_CHECKING:
 class ProjectionHead(nn.Module):
     """MLP that projects encoder output into the shared space.
 
-    Architecture: Linear(d_in, 512) -> ReLU -> Linear(512, 256) -> L2 norm.
+    Configurable-depth MLP with optional dropout. Default (depth=3,
+    dropout=0.1) adds one hidden-to-hidden block between input and
+    output layers.
 
     The output is always L2-normalized to lie on the unit hypersphere,
     so dot products equal cosine similarity.
+
+    Layer naming preserves checkpoint compatibility: the first layer
+    is always ``linear1``, the final layer is always ``linear2``, and
+    any intermediate layers use ``linear_mid*`` names.
     """
 
     def __init__(
-        self, d_in: int, d_hidden: int = 512, d_out: int = 256
+        self,
+        d_in: int,
+        d_hidden: int = 512,
+        d_out: int = 256,
+        depth: int = 3,
+        dropout: float = 0.1,
     ) -> None:
         super().__init__()
-        self.net = nn.Sequential(
-            OrderedDict(
-                [
-                    ("linear1", nn.Linear(d_in, d_hidden)),
-                    ("relu", nn.ReLU()),
-                    ("linear2", nn.Linear(d_hidden, d_out)),
-                ]
-            )
-        )
+        layers: list[tuple[str, nn.Module]] = [
+            ("linear1", nn.Linear(d_in, d_hidden)),
+            ("relu", nn.ReLU()),
+        ]
+        if dropout > 0.0:
+            layers.append(("dropout1", nn.Dropout(dropout)))
+        for i in range(depth - 2):
+            layers.append((f"linear_mid{i + 1}", nn.Linear(d_hidden, d_hidden)))
+            layers.append((f"relu_mid{i + 1}", nn.ReLU()))
+            if dropout > 0.0:
+                layers.append((f"dropout_mid{i + 1}", nn.Dropout(dropout)))
+        layers.append(("linear2", nn.Linear(d_hidden, d_out)))
+        self.net = nn.Sequential(OrderedDict(layers))
 
     def forward(self, x: Tensor) -> Tensor:
         """Project and L2-normalize.
@@ -69,12 +84,16 @@ class ContrastiveModel(nn.Module):
         audio_embed_dim: int,
         projection_hidden: int = 512,
         projection_out: int = 256,
+        projection_depth: int = 3,
+        projection_dropout: float = 0.1,
         temperature_init: float = 0.07,
+        finetune_audio: bool = False,
     ) -> None:
         super().__init__()
         self.text_encoder = text_encoder
         self.audio_encoder = audio_encoder
         self.audio_extractor = audio_extractor
+        self.finetune_audio = finetune_audio
         self.log_temperature = nn.Parameter(
             torch.tensor(temperature_init).log()
         )
@@ -82,11 +101,15 @@ class ContrastiveModel(nn.Module):
             d_in=text_embed_dim,
             d_hidden=projection_hidden,
             d_out=projection_out,
+            depth=projection_depth,
+            dropout=projection_dropout,
         )
         self.audio_projection_head = ProjectionHead(
             d_in=audio_embed_dim,
             d_hidden=projection_hidden,
             d_out=projection_out,
+            depth=projection_depth,
+            dropout=projection_dropout,
         )
 
     def forward(
@@ -105,14 +128,15 @@ class ContrastiveModel(nn.Module):
             embeds are ``(N, projection_out)`` and temperature
             is a positive scalar tensor.
         """
-        text_embeds = encoders.encode_text(
-            self.text_encoder, texts
-        ).detach()
+        text_embeds = encoders.encode_text(self.text_encoder, texts).detach()
         audio_embeds = encoders.encode_audio(
             self.audio_encoder,
             self.audio_extractor,
             spectrograms,
-        ).detach()
+            training=self.finetune_audio and self.training,
+        )
+        if not self.finetune_audio:
+            audio_embeds = audio_embeds.detach()
         text_embeds = self.text_projection_head(text_embeds)
         audio_embeds = self.audio_projection_head(audio_embeds)
         temperature = self.log_temperature.exp().clamp(min=0.01, max=100.0)
@@ -121,10 +145,34 @@ class ContrastiveModel(nn.Module):
 
 def get_trainable_params(
     model: ContrastiveModel,
-) -> list[nn.Parameter]:
+    encoder_lr: float | None = None,
+) -> list[nn.Parameter] | list[dict[str, object]]:
     """Return only the trainable parameters of the model.
 
-    This includes projection head weights and the temperature
-    parameter, not the frozen encoder weights.
+    When ``encoder_lr`` is provided and the model is fine-tuning
+    the audio encoder, returns two param groups with differential
+    learning rates. Otherwise returns a flat parameter list.
+
+    Args:
+        model: The ContrastiveModel.
+        encoder_lr: Learning rate for unfrozen encoder layers.
+            If None or model is not fine-tuning, returns a flat
+            list of all trainable parameters.
+
+    Returns:
+        Parameter list or param groups suitable for an optimizer.
     """
+    if encoder_lr is not None and model.finetune_audio:
+        encoder_params = [
+            p for p in model.audio_encoder.parameters() if p.requires_grad
+        ]
+        projection_params = [
+            p
+            for name, p in model.named_parameters()
+            if p.requires_grad and "audio_encoder" not in name
+        ]
+        return [
+            {"params": projection_params},
+            {"params": encoder_params, "lr": encoder_lr},
+        ]
     return [p for p in model.parameters() if p.requires_grad]

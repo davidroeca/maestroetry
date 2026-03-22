@@ -4,25 +4,34 @@ tier: full
 
 intent: |
   Trainable projection heads that map encoder outputs into the shared
-  256-dim embedding space, plus the ContrastiveModel that wires frozen
-  encoders and projection heads together with a learnable temperature.
-  Projection heads are the only trainable components in the system.
+  256-dim embedding space, plus the ContrastiveModel that wires encoders
+  and projection heads together with a learnable temperature.
 
 behaviors:
   - name: project_embeddings
     given: encoder output of shape (N, d_in)
-    then: returns L2-normalized embeddings of shape (N, 256) via Linear(d_in, 512) -> ReLU -> Linear(512, 256) -> L2 norm
+    then: returns L2-normalized embeddings of shape (N, 256) via a
+      configurable-depth MLP with optional dropout; layer naming uses
+      linear1 / linear_mid* / linear2 for checkpoint compatibility
   - name: contrastive_forward
     given: a list of text strings and a batch of spectrograms
-    then: returns (text_embeds, audio_embeds, temperature) with embeds of shape (N, 256)
+    then: returns (text_embeds, audio_embeds, temperature) with embeds
+      of shape (N, 256); when finetune_audio is True, gradients flow
+      through audio encoder (no detach)
   - name: get_trainable_params
-    given: a ContrastiveModel instance
-    then: returns only projection head parameters and temperature, not frozen encoder parameters
+    given: a ContrastiveModel and an optional encoder_lr
+    then: returns trainable parameters; when encoder_lr is provided and
+      the model is fine-tuning audio, returns param groups with
+      differential learning rates
 
 constraints:
-  - "Projection architecture: Linear(d_in, 512) -> ReLU -> Linear(512, 256) -> L2 norm"
+  - "Projection architecture: Linear(d_in, d_hidden) -> ReLU -> [Dropout]
+    -> [Linear(d_hidden, d_hidden) -> ReLU -> Dropout] x (depth-2) ->
+    Linear(d_hidden, d_out) -> L2 norm; configurable via projection_depth
+    and projection_dropout"
   - Output embeddings must be L2-normalized to unit length
-  - Only projection head parameters and temperature are trainable
+  - "finetune_audio flag on ContrastiveModel controls whether audio
+    encoder gradients flow through (conditionally skips .detach())"
 
 invariants:
   - Output shape is always (batch_size, 256)

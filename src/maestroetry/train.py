@@ -13,7 +13,11 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from maestroetry.dataset import AudioTextDataset
-from maestroetry.encoders import load_audio_encoder, load_text_encoder
+from maestroetry.encoders import (
+    load_audio_encoder,
+    load_text_encoder,
+    unfreeze_audio_top_layers,
+)
 from maestroetry.evaluate import recall_at_k
 from maestroetry.loss import info_nce_loss
 from maestroetry.projection import ContrastiveModel, get_trainable_params
@@ -47,6 +51,23 @@ def _eval_recall(
     return recall_at_k(torch.cat(all_text), torch.cat(all_audio))
 
 
+def _clip_and_step(
+    model: ContrastiveModel,
+    optimizer: Optimizer,
+    scheduler: LRScheduler,
+    max_grad_norm: float,
+) -> None:
+    """Clip gradients (if enabled), step optimizer and scheduler."""
+    if max_grad_norm > 0.0:
+        torch.nn.utils.clip_grad_norm_(
+            [p for p in model.parameters() if p.requires_grad],
+            max_grad_norm,
+        )
+    optimizer.step()
+    scheduler.step()
+    optimizer.zero_grad(set_to_none=True)
+
+
 def train_one_epoch(
     model: ContrastiveModel,
     dataloader: DataLoader[tuple[Tensor, str]],
@@ -54,12 +75,14 @@ def train_one_epoch(
     scheduler: LRScheduler,
     device: str = "cuda",
     grad_accumulation_steps: int = 1,
+    max_grad_norm: float = 0.0,
+    frozen_audio_layers: list[torch.nn.Module] | None = None,
 ) -> float:
     """Run one training epoch.
 
     For each batch: encode text and audio through the model,
     compute symmetric InfoNCE loss, backpropagate through
-    projection heads only, and step the optimizer every
+    trainable parameters, and step the optimizer every
     ``grad_accumulation_steps`` batches.
 
     Args:
@@ -70,11 +93,20 @@ def train_one_epoch(
         device: Device to run on.
         grad_accumulation_steps: Number of batches to accumulate
             gradients over before each optimizer step.
+        max_grad_norm: Maximum gradient norm for clipping. 0.0
+            disables clipping.
+        frozen_audio_layers: AST layers that should stay in eval
+            mode even when the model is in train mode.
 
     Returns:
         Mean loss over the epoch.
     """
     model.train()
+    # Keep frozen AST layers in eval mode to preserve BatchNorm
+    # behavior when only the top layers are unfrozen.
+    if frozen_audio_layers:
+        for layer in frozen_audio_layers:
+            layer.eval()
     losses: list[float] = []
     optimizer.zero_grad(set_to_none=True)
     for i, (spectrograms, texts) in enumerate(dataloader, 1):
@@ -85,18 +117,14 @@ def train_one_epoch(
             loss = loss / grad_accumulation_steps
         loss.backward()
         if i % grad_accumulation_steps == 0:
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad(set_to_none=True)
+            _clip_and_step(model, optimizer, scheduler, max_grad_norm)
         losses.append(loss.item() * grad_accumulation_steps)
         if i % 20 == 0:
             logger.info("  batch %d - loss: %.4f", i, losses[-1])
     # Handle leftover batches that didn't complete a full
     # accumulation cycle.
     if len(dataloader) % grad_accumulation_steps != 0:
-        optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad(set_to_none=True)
+        _clip_and_step(model, optimizer, scheduler, max_grad_norm)
     if losses:
         return sum(losses, start=0) / len(losses)
     else:
@@ -108,11 +136,7 @@ def _trainable_state_dict(model: ContrastiveModel) -> dict[str, torch.Tensor]:
     trainable_keys = {
         name for name, p in model.named_parameters() if p.requires_grad
     }
-    return {
-        k: v
-        for k, v in model.state_dict().items()
-        if k in trainable_keys
-    }
+    return {k: v for k, v in model.state_dict().items() if k in trainable_keys}
 
 
 def save_checkpoint(
@@ -162,7 +186,20 @@ def load_checkpoint(
         The next epoch to train from.
     """
     ckpt = torch.load(path, weights_only=False)
-    model.load_state_dict(ckpt["model"], strict=False)
+    # Filter checkpoint to only load currently trainable params,
+    # so frozen encoder layers aren't overwritten with stale
+    # fine-tuned weights from a different unfreeze config.
+    trainable_keys = {
+        name for name, p in model.named_parameters() if p.requires_grad
+    }
+    filtered = {k: v for k, v in ckpt["model"].items() if k in trainable_keys}
+    skipped = set(ckpt["model"]) - trainable_keys
+    if skipped:
+        logger.info(
+            "Skipped %d checkpoint keys not trainable in current config",
+            len(skipped),
+        )
+    model.load_state_dict(filtered, strict=False)
     if model_weights_only:
         logger.info("Loaded model weights only (skipping optimizer/scheduler)")
         return 0
@@ -198,6 +235,7 @@ def train(
         name=config.audio_encoder_name,
         device=config.device,
     )
+    finetune_audio = config.unfreeze_audio_layers > 0
     model = ContrastiveModel(
         text_encoder=text_encoder,
         audio_encoder=audio_encoder,
@@ -206,11 +244,31 @@ def train(
         audio_embed_dim=audio_embed_dim,
         projection_hidden=config.projection_hidden_dim,
         projection_out=config.embed_dim,
+        projection_depth=config.projection_depth,
+        projection_dropout=config.projection_dropout,
         temperature_init=config.temperature_init,
+        finetune_audio=finetune_audio,
     )
     model.to(device=config.device)
     model.text_projection_head = torch.compile(model.text_projection_head)
     model.audio_projection_head = torch.compile(model.audio_projection_head)
+
+    # Selectively unfreeze top AST layers if configured.
+    frozen_audio_layers: list[torch.nn.Module] | None = None
+    if finetune_audio:
+        unfreeze_audio_top_layers(audio_encoder, config.unfreeze_audio_layers)
+        total_layers = len(audio_encoder.encoder.layer)
+        frozen_audio_layers = list(
+            audio_encoder.encoder.layer[
+                : total_layers - config.unfreeze_audio_layers
+            ]
+        )
+        logger.info(
+            "Unfreezing top %d AST layers (of %d total)",
+            config.unfreeze_audio_layers,
+            total_layers,
+        )
+
     dataset = AudioTextDataset(
         manifest_path=Path(config.data_dir) / "manifest.csv",
         cache_dir=config.cache_dir,
@@ -223,8 +281,9 @@ def train(
         num_workers=2,
         pin_memory=use_cuda,
     )
+    encoder_lr = config.encoder_learning_rate if finetune_audio else None
     optimizer = torch.optim.AdamW(
-        get_trainable_params(model),
+        get_trainable_params(model, encoder_lr=encoder_lr),
         lr=config.learning_rate,
         weight_decay=config.weight_decay,
     )
@@ -267,6 +326,8 @@ def train(
             scheduler=scheduler,
             device=config.device,
             grad_accumulation_steps=config.grad_accumulation_steps,
+            max_grad_norm=config.max_grad_norm,
+            frozen_audio_layers=frozen_audio_layers,
         )
         logger.info("  mean loss: %.4f", loss)
         writer.add_scalar("loss/train", loss, epoch)

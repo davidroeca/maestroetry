@@ -15,23 +15,31 @@ behaviors:
   - name: load_audio_encoder
     given: an AST model name and target device
     then: returns a frozen model in eval mode, its feature extractor, and output embedding dimension
+  - name: unfreeze_audio_top_layers
+    given: a frozen ASTModel and a layer count N
+    then: unfreezes the top N transformer layers (model.encoder.layer[-N:])
+      and the final layernorm, setting them to train mode; the rest stays
+      frozen in eval mode
   - name: encode_text
     given: a list of text strings and a frozen SentenceTransformer
     then: returns an (N, 384) tensor of text embeddings
   - name: encode_audio
-    given: mel spectrograms, a frozen AST model, and a feature extractor (accepted
-      for API forward-compatibility but currently bypassed; spectrograms are
-      pre-processed by the dataset pipeline and passed directly as input_values)
-    then: returns an (N, embed_dim) tensor of audio embeddings
+    given: mel spectrograms, an AST model (frozen or partially unfrozen),
+      a feature extractor, and an optional training flag
+    then: returns an (N, embed_dim) tensor of audio embeddings; when
+      training=True, skips torch.inference_mode() so gradients can flow
+      through unfrozen layers
 
 constraints:
-  - All encoder parameters must have requires_grad=False
-  - Encoders must be in eval() mode during all usage
+  - By default all encoder parameters are frozen (requires_grad=False);
+    optionally the top N audio encoder layers can be unfrozen for fine-tuning
+  - Frozen layers must remain in eval() mode; unfrozen layers use train mode
   - "Text encoder: all-MiniLM-L6-v2 producing 384-dim output"
   - "Audio encoder: MIT/ast-finetuned-audioset-10-10-0.4593"
 
 invariants:
-  - Encoder weights are never modified after loading
+  - Frozen encoder weights are never modified; unfrozen layers are
+    trained with a separate (lower) learning rate
   - Text encoder output shape is (batch_size, 384)
   - Audio encoder output shape is (batch_size, audio_embed_dim)
 

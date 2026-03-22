@@ -2,16 +2,16 @@
   "schema_version": "1",
   "cli_version": "0.5.0",
   "last_reconciliation": {
-    "timestamp": "1773985014Z",
-    "git_hash": "88233f0a8040885eee88bc3710e5904279052e09",
+    "timestamp": "1774204039Z",
+    "git_hash": "9c2b37643e10c1bc561bcb85e14cda8af4bafb57",
     "branch": "main"
   },
   "file_fingerprints": {
     "README.md": {
-      "blake3": "d0472d06f64e77e33437690d7fc610085f70c5b7707ef1bc103799ab718b2bb8"
+      "blake3": "ce86adf5ec59579dd5562bfdc64d6fe0de3eb183a52631cfdffc8839056bf583"
     },
     "configs/default.toml": {
-      "blake3": "b69b18c04d69e17a1681ae17211000c1893e694055dc0eeb5bb227a71aace66d"
+      "blake3": "a00f034ec58bcd8094db63634136083ddc05ca50e21afd62f31337466db485c7"
     },
     "main.py": {
       "blake3": "6bac9b8fb309e4ae60056d42c219a5f749ac6e4889a5a9d5772eb9e60e9bc122"
@@ -23,13 +23,13 @@
       "blake3": "6d248d91b44e2db6bd8ed2e0e62696ab0c6546a451cf2f149c4860bc3b962bf4"
     },
     "src/maestroetry/config.py": {
-      "blake3": "b7059be703e160399c76d34e6b76be410e66e3fc22cfe09ee0c1a4fefeb5dab4"
+      "blake3": "bed06eec1901dad8058fc976a6d0fc50e8c53208e2650849bc072a5b4167402b"
     },
     "src/maestroetry/dataset.py": {
       "blake3": "99129c1f4a0db5152840cd5ecea10f0c6c497b0f7d01970c77d00b947b63f504"
     },
     "src/maestroetry/encoders.py": {
-      "blake3": "a6a2ac0c45d3f8dac23b64ab1dd8be94fbf7ca4e7750a3b869ae594121849cc4"
+      "blake3": "5e71098ad34ab3e8047c7c2a74161dc4bf89027dd3ba8a3babcc6e32b808fee9"
     },
     "src/maestroetry/evaluate.py": {
       "blake3": "d2e1f69ef22092e7472b285dba3c80800f24aff0e7f7dbef55f23be709c460a6"
@@ -41,10 +41,10 @@
       "blake3": "6999fdd487f84469ed105e6c5b502705c4149d4ee55cf2ac5db08dc43f676e57"
     },
     "src/maestroetry/projection.py": {
-      "blake3": "3174805bb7c55b34dbc627b75b53c15b67c44f08584590dcd063da2cc9962894"
+      "blake3": "f132f8db1d2392ed59e482e2b0d66d55ae809b5d6694fc0f2c0f202e26266f66"
     },
     "src/maestroetry/train.py": {
-      "blake3": "e480769e3c1c9ba0df38c5accb887d807464bc83f78a6f407c5177b8dd8a3beb"
+      "blake3": "26f44508212185ff2e022a564bdfb71bc78d03991064b50d57560afaeccb5dd0"
     },
     "tests/__init__.py": {
       "blake3": "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
@@ -64,9 +64,9 @@
   },
   "spec_fingerprints": {
     ".notarai/data-pipeline.spec.yaml": "552e1eb083c2d4817eb6d7effbbd30a8277fd23277aaf82f323f6bc1db17df2b",
-    ".notarai/encoders.spec.yaml": "e3394c8b3b60ced7dcab07101a30c36a3fc13497f9bbdb2fe6a9d366a5f76120",
-    ".notarai/maestroetry.spec.yaml": "58f87e90c95d50a778853f77b575dfc404b490420d32a072d12f3775b473a991",
-    ".notarai/projection.spec.yaml": "9d1efb262b9e1b83bb5d3dec0207c52da2f782727d51e45bd39b59715e912aba",
-    ".notarai/training.spec.yaml": "c93ac5581b0715b25dcacef138680b94b82aa295bd7c049e2328265ea5aca8a2"
+    ".notarai/encoders.spec.yaml": "ba45b812f497090c276ae24820dbedf1bedd4d2c61134f3053f010577c77110e",
+    ".notarai/maestroetry.spec.yaml": "59c726e5dd2c81c9f1ba713712c57b1854168428b84d96e8a5f83c0575907343",
+    ".notarai/projection.spec.yaml": "b1f26a4932c8c9430f07ab902c9a9337e5cdfbb956a9724eaf1625684a0f0554",
+    ".notarai/training.spec.yaml": "5cd9e2b1b02ebf76c5e1957be9eb46e0f55139dfe42b0f60a213129aaaee46dd"
   }
 }

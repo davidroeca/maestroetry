@@ -82,23 +82,60 @@ def encode_text(
         return model.encode(texts, convert_to_tensor=True)
 
 
+def unfreeze_audio_top_layers(
+    model: ASTModel,
+    num_layers: int,
+) -> None:
+    """Unfreeze the top N transformer layers of the AST encoder.
+
+    Unfreezes ``model.encoder.layer[-num_layers:]`` and the final
+    ``model.layernorm``, setting them to train mode. The rest of
+    the model stays frozen in eval mode.
+
+    Args:
+        model: The ASTModel (initially fully frozen).
+        num_layers: Number of top encoder layers to unfreeze.
+            If 0, nothing changes.
+    """
+    if num_layers <= 0:
+        return
+    total = len(model.encoder.layer)
+    if num_layers > total:
+        raise ValueError(
+            f"Cannot unfreeze {num_layers} layers; "
+            f"model has only {total} encoder layers"
+        )
+    for layer in model.encoder.layer[-num_layers:]:
+        for param in layer.parameters():
+            param.requires_grad = True
+        layer.train()
+    for param in model.layernorm.parameters():
+        param.requires_grad = True
+
+
 def encode_audio(
     model: ASTModel,
     extractor: ASTFeatureExtractor,  # noqa: ARG001
     spectrograms: Tensor,
+    *,
+    training: bool = False,
 ) -> Tensor:
     """Encode mel spectrograms into embeddings via AST.
 
     Args:
-        model: A frozen ASTModel.
+        model: An ASTModel (frozen or partially unfrozen).
         extractor: The corresponding ASTFeatureExtractor.
         spectrograms: ``(N, n_mels, time_frames)`` tensor of
             mel spectrograms.
+        training: If True, skip ``torch.inference_mode()`` so
+            gradients can flow through unfrozen layers.
 
     Returns:
         ``(N, embed_dim)`` tensor of audio embeddings.
     """
+    if training:
+        output = model(input_values=spectrograms)
+        return output.last_hidden_state[:, 0, :]
     with torch.inference_mode():
         output = model(input_values=spectrograms)
-        cls_tokens = output.last_hidden_state[:, 0, :]
-        return cls_tokens
+        return output.last_hidden_state[:, 0, :]

@@ -21,11 +21,18 @@ class TrainConfig:
     # Model architecture
     embed_dim: int = 256
     projection_hidden_dim: int = 512
+    projection_depth: int = 3
+    projection_dropout: float = 0.1
     temperature_init: float = 0.07
 
     # Encoder names
     text_encoder_name: str = "all-MiniLM-L6-v2"
     audio_encoder_name: str = "MIT/ast-finetuned-audioset-10-10-0.4593"
+
+    # Encoder fine-tuning
+    unfreeze_audio_layers: int = 0
+    encoder_learning_rate: float = 1e-5
+    max_grad_norm: float = 1.0
 
     # Training
     batch_size: int = 64

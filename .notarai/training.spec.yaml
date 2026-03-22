@@ -20,7 +20,10 @@ behaviors:
     then: loads encoders, builds model, trains for num_epochs with TensorBoard logging
       for loss and Recall@k metrics; metrics are evaluated every eval_interval epochs
       and always on the final epoch; saves a single best.pt checkpoint (overwritten
-      when R@1 improves); supports resuming from a prior checkpoint
+      when R@1 improves); supports resuming from a prior checkpoint; when
+      unfreeze_audio_layers > 0, applies differential learning rates (encoder_learning_rate
+      for unfrozen AST layers, learning_rate for projection heads) and gradient clipping
+      via max_grad_norm
   - name: save_checkpoint
     given: a model, optimizer, scheduler, epoch number, and output path
     then: persists only trainable parameter state (projection heads and temperature),
@@ -29,9 +32,10 @@ behaviors:
   - name: load_checkpoint
     given: a checkpoint file path, model, optimizer, scheduler, and optional
       model_weights_only flag
-    then: restores model weights from disk (with strict=False for compatibility
-      with both slim and full checkpoints); when model_weights_only is false,
-      also restores optimizer and scheduler state and returns the next epoch;
+    then: filters checkpoint keys to only currently-trainable parameters (so
+      frozen encoder layers are not overwritten when unfreeze config changes),
+      then loads via strict=False; when model_weights_only is false, also
+      restores optimizer and scheduler state and returns the next epoch;
       when true, skips optimizer/scheduler and returns epoch 0
   - name: recall_at_k
     given: paired text and audio embeddings and k values
@@ -40,16 +44,21 @@ behaviors:
 constraints:
   - InfoNCE loss is symmetric (both directions averaged)
   - "Optimizer: AdamW with lr=5e-4 and linear warmup"
-  - Gradients flow only through projection heads and temperature
+  - By default gradients flow only through projection heads and temperature;
+    when unfreeze_audio_layers > 0, gradients also flow through the top N
+    audio encoder layers at a separate learning rate (encoder_learning_rate)
   - "Default batch size: 100"
   - TensorBoard logging for loss and metrics
   - Recall@k metrics are logged every eval_interval epochs (and always on the final epoch)
   - "checkpoint_dir is configurable via TrainConfig and CLI override"
+  - "New config fields: projection_depth, projection_dropout,
+    unfreeze_audio_layers, encoder_learning_rate, max_grad_norm"
 
 invariants:
   - Random embeddings produce loss approximately equal to log(batch_size)
   - Recall@k values are in [0.0, 1.0]
-  - Training never modifies frozen encoder parameters
+  - Training never modifies frozen encoder parameters; unfrozen layers
+    are trained with gradient clipping (max_grad_norm) for stability
 
 artifacts:
   code:
