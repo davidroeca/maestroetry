@@ -338,7 +338,7 @@ def train(
             logger.info("  %s", metrics_str)
             for key, val in metrics.items():
                 writer.add_scalar(f"metrics/{key}", val, epoch)
-            recall = metrics.get("R@1_t2a", 0.0)
+            recall = metrics.get("t2a_R@1", 0.0)
             if recall > best_recall:
                 best_recall = recall
                 save_checkpoint(best_ckpt, model, optimizer, scheduler, epoch)
