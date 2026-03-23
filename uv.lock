@@ -898,6 +898,7 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "sentence-transformers" },
+    { name = "setuptools" },
     { name = "tensorboard" },
     { name = "transformers" },
 ]
@@ -930,6 +931,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "scipy", specifier = ">=1.17.1" },
     { name = "sentence-transformers", specifier = ">=5.3.0" },
+    { name = "setuptools", specifier = ">=82.0.1" },
     { name = "tensorboard", specifier = ">=2.20.0" },
     { name = "transformers", specifier = ">=5.3.0" },
 ]
