@@ -142,16 +142,21 @@ def ingest_lp_musiccaps(
     data_dir: str | Path = "data",
     max_samples: int | None = None,
     split: str = "train",
+    all_captions: bool = False,
 ) -> list[dict[str, str]]:
     """Download LP-MusicCaps-MTT and extract audio + captions.
 
     Each row has an ``audio`` struct and ``texts`` (list of 4 caption
-    variants); one caption is picked at random for diversity.
+    variants). By default one caption is picked at random; set
+    ``all_captions=True`` to emit one row per variant (up to 4x more
+    training pairs per audio track).
 
     Args:
         data_dir: Root data directory.
-        max_samples: Cap on number of samples to process.
+        max_samples: Cap on number of audio tracks to process.
         split: Dataset split to load.
+        all_captions: If True, emit all non-null caption variants as
+            separate rows. If False, pick one at random.
 
     Returns:
         List of manifest row dicts with audio_path, text, source.
@@ -177,16 +182,18 @@ def ingest_lp_musiccaps(
             audio_array, sr = _decode_audio_struct(pa_table["audio"][i].as_py())
             _save_audio_array_as_wav(audio_array, sr, wav_path)
 
-        caption = random.choice(pa_table["texts"][i].as_py())
-        rows.append(
-            {
-                "audio_path": str(wav_path),
-                "text": caption,
-                "source": "lp_musiccaps",
-            }
-        )
-        if len(rows) % 100 == 0:
-            logger.info("[%d] LP-MusicCaps tracks processed...", len(rows))
+        texts = pa_table["texts"][i].as_py()
+        captions = [t for t in texts if t] if all_captions else [random.choice(texts)]
+        for caption in captions:
+            rows.append(
+                {
+                    "audio_path": str(wav_path),
+                    "text": caption,
+                    "source": "lp_musiccaps",
+                }
+            )
+        if i % 100 == 0:
+            logger.info("[%d] LP-MusicCaps tracks processed...", i)
 
     logger.info("LP-MusicCaps ingest complete: %d samples", len(rows))
     return rows
@@ -255,6 +262,7 @@ def ingest(
     max_samples_jamendo: int | None = None,
     lp_only: bool = False,
     jamendo_only: bool = False,
+    lp_all_captions: bool = False,
 ) -> None:
     """Orchestrate LP-MusicCaps and Jamendo ingest.
 
@@ -264,10 +272,12 @@ def ingest(
 
     Args:
         data_dir: Root data directory.
-        max_samples_lp: Cap on LP-MusicCaps samples.
+        max_samples_lp: Cap on LP-MusicCaps audio tracks.
         max_samples_jamendo: Cap on Jamendo samples.
         lp_only: If True, only ingest LP-MusicCaps.
         jamendo_only: If True, only ingest Jamendo.
+        lp_all_captions: If True, emit all LP-MusicCaps caption
+            variants as separate rows instead of picking one at random.
     """
     data_dir = Path(data_dir)
     manifest_path = data_dir / "manifest.csv"
@@ -275,7 +285,11 @@ def ingest(
 
     if not jamendo_only:
         all_rows.extend(
-            ingest_lp_musiccaps(data_dir, max_samples=max_samples_lp)
+            ingest_lp_musiccaps(
+                data_dir,
+                max_samples=max_samples_lp,
+                all_captions=lp_all_captions,
+            )
         )
 
     if not lp_only:

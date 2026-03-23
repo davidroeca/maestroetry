@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import torch
 import torch.optim
@@ -68,6 +69,32 @@ def _clip_and_step(
     optimizer.zero_grad(set_to_none=True)
 
 
+def _cosine_warmup_lambda(
+    warmup_steps: int,
+    total_steps: int,
+) -> Callable[[int], float]:
+    """Return an LR multiplier function for warmup + cosine decay.
+
+    Applies as a multiplier to each optimizer param group's base LR,
+    so differential learning rates are correctly scaled throughout.
+
+    Args:
+        warmup_steps: Number of linear warmup steps.
+        total_steps: Total number of optimizer steps.
+
+    Returns:
+        A callable ``step -> float`` suitable for ``LambdaLR``.
+    """
+
+    def lr_lambda(step: int) -> float:
+        if step < warmup_steps:
+            return (step + 1) / max(warmup_steps, 1)
+        progress = (step - warmup_steps) / max(total_steps - warmup_steps, 1)
+        return 0.5 * (1.0 + math.cos(math.pi * min(progress, 1.0)))
+
+    return lr_lambda
+
+
 def train_one_epoch(
     model: ContrastiveModel,
     dataloader: DataLoader[tuple[Tensor, str]],
@@ -89,7 +116,7 @@ def train_one_epoch(
         model: The ContrastiveModel to train.
         dataloader: Yields ``(spectrograms, texts)`` batches.
         optimizer: AdamW optimizer over trainable params.
-        scheduler: Learning rate scheduler (linear warmup).
+        scheduler: Learning rate scheduler.
         device: Device to run on.
         grad_accumulation_steps: Number of batches to accumulate
             gradients over before each optimizer step.
@@ -269,15 +296,33 @@ def train(
             total_layers,
         )
 
-    dataset = AudioTextDataset(
-        manifest_path=Path(config.data_dir) / "manifest.csv",
+    manifest_path = Path(config.data_dir) / "manifest.csv"
+    train_dataset = AudioTextDataset(
+        manifest_path=manifest_path,
         cache_dir=config.cache_dir,
+        augment=config.spec_augment,
+        spec_aug_freq_masks=config.spec_aug_freq_masks,
+        spec_aug_freq_width=config.spec_aug_freq_width,
+        spec_aug_time_masks=config.spec_aug_time_masks,
+        spec_aug_time_width=config.spec_aug_time_width,
+    )
+    eval_dataset = AudioTextDataset(
+        manifest_path=manifest_path,
+        cache_dir=config.cache_dir,
+        augment=False,
     )
     use_cuda = config.device != "cpu"
     dataloader = DataLoader(
-        dataset,
+        train_dataset,
         batch_size=config.batch_size,
         shuffle=True,
+        num_workers=2,
+        pin_memory=use_cuda,
+    )
+    eval_dataloader = DataLoader(
+        eval_dataset,
+        batch_size=config.batch_size,
+        shuffle=False,
         num_workers=2,
         pin_memory=use_cuda,
     )
@@ -287,12 +332,26 @@ def train(
         lr=config.learning_rate,
         weight_decay=config.weight_decay,
     )
-    scheduler = torch.optim.lr_scheduler.LinearLR(
-        optimizer,
-        start_factor=1 / max(config.warmup_steps, 1),
-        end_factor=1.0,
-        total_iters=config.warmup_steps,
+    steps_per_epoch = math.ceil(len(train_dataset) / config.batch_size)
+    optimizer_steps_per_epoch = math.ceil(
+        steps_per_epoch / config.grad_accumulation_steps
     )
+    total_optimizer_steps = optimizer_steps_per_epoch * config.num_epochs
+    if config.lr_schedule == "cosine":
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            lr_lambda=_cosine_warmup_lambda(
+                warmup_steps=config.warmup_steps,
+                total_steps=total_optimizer_steps,
+            ),
+        )
+    else:
+        scheduler = torch.optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=1 / max(config.warmup_steps, 1),
+            end_factor=1.0,
+            total_iters=config.warmup_steps,
+        )
     start_epoch = 0
     if resume:
         start_epoch = load_checkpoint(
@@ -309,11 +368,12 @@ def train(
     effective_batch = config.batch_size * config.grad_accumulation_steps
     logger.info(
         "Training: %d epochs, %d samples, batch size %d"
-        " (effective %d), device %s",
+        " (effective %d), schedule %s, device %s",
         config.num_epochs,
-        len(dataset),
+        len(train_dataset),
         config.batch_size,
         effective_batch,
+        config.lr_schedule,
         config.device,
     )
     best_recall: float = -1.0
@@ -333,7 +393,7 @@ def train(
         writer.add_scalar("loss/train", loss, epoch)
         is_last = epoch == config.num_epochs - 1
         if is_last or (epoch + 1) % config.eval_interval == 0:
-            metrics = _eval_recall(model, dataloader, config.device)
+            metrics = _eval_recall(model, eval_dataloader, config.device)
             metrics_str = "  ".join(f"{k}: {v:.4f}" for k, v in metrics.items())
             logger.info("  %s", metrics_str)
             for key, val in metrics.items():

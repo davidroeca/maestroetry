@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import random
 from pathlib import Path
 
 import librosa
@@ -127,6 +128,42 @@ def cache_spectrograms(
             logger.info("[%d] spectrograms cached...", i)
 
 
+def apply_spec_augment(
+    spec: Tensor,
+    freq_masks: int,
+    freq_width: int,
+    time_masks: int,
+    time_width: int,
+) -> Tensor:
+    """Apply SpecAugment time and frequency masking to a spectrogram.
+
+    Randomly zeros out frequency strips (horizontal) and time strips
+    (vertical) in the spectrogram. Operates on a clone so the cached
+    tensor on disk is never modified.
+
+    Args:
+        spec: Spectrogram tensor of shape ``(time_frames, n_mels)``.
+        freq_masks: Number of frequency mask strips to apply.
+        freq_width: Maximum width of each frequency mask (mel bins).
+        time_masks: Number of time mask strips to apply.
+        time_width: Maximum width of each time mask (frames).
+
+    Returns:
+        Augmented spectrogram tensor with the same shape.
+    """
+    spec = spec.clone()
+    t_frames, n_mels = spec.shape
+    for _ in range(freq_masks):
+        f = random.randint(0, freq_width)
+        f0 = random.randint(0, max(n_mels - f, 0))
+        spec[:, f0 : f0 + f] = 0.0
+    for _ in range(time_masks):
+        t = random.randint(0, time_width)
+        t0 = random.randint(0, max(t_frames - t, 0))
+        spec[t0 : t0 + t, :] = 0.0
+    return spec
+
+
 class AudioTextDataset(Dataset[tuple[Tensor, str]]):
     """Dataset of (spectrogram, text) pairs.
 
@@ -138,12 +175,22 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
         manifest_path: Path to CSV file with ``audio_path`` and
             ``text`` columns.
         cache_dir: Directory containing cached ``.pt`` spectrograms.
+        augment: If True, apply SpecAugment masking on each load.
+        spec_aug_freq_masks: Number of frequency mask strips.
+        spec_aug_freq_width: Max width of each frequency mask.
+        spec_aug_time_masks: Number of time mask strips.
+        spec_aug_time_width: Max width of each time mask.
     """
 
     def __init__(
         self,
         manifest_path: str | Path,
         cache_dir: str | Path,
+        augment: bool = False,
+        spec_aug_freq_masks: int = 2,
+        spec_aug_freq_width: int = 27,
+        spec_aug_time_masks: int = 2,
+        spec_aug_time_width: int = 100,
     ) -> None:
         with Path(manifest_path).open(mode="r", encoding="utf8") as manifest_f:
             reader = csv.DictReader(manifest_f)
@@ -156,6 +203,11 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
                 )
                 for row in reader
             ]
+        self.augment = augment
+        self.spec_aug_freq_masks = spec_aug_freq_masks
+        self.spec_aug_freq_width = spec_aug_freq_width
+        self.spec_aug_time_masks = spec_aug_time_masks
+        self.spec_aug_time_width = spec_aug_time_width
 
     def __len__(self) -> int:
         return len(self.pairs)
@@ -164,4 +216,12 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
         """Return (spectrogram, text) for the given index."""
         cache_location, text = self.pairs[idx]
         spectrogram = torch.load(cache_location, weights_only=True)
+        if self.augment:
+            spectrogram = apply_spec_augment(
+                spectrogram,
+                freq_masks=self.spec_aug_freq_masks,
+                freq_width=self.spec_aug_freq_width,
+                time_masks=self.spec_aug_time_masks,
+                time_width=self.spec_aug_time_width,
+            )
         return spectrogram, text

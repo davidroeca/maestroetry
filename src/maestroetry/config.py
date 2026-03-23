@@ -34,6 +34,9 @@ class TrainConfig:
     encoder_learning_rate: float = 1e-5
     max_grad_norm: float = 1.0
 
+    # LR schedule
+    lr_schedule: Literal["linear", "cosine"] = "cosine"
+
     # Training
     batch_size: int = 64
     learning_rate: float = 3e-4
@@ -42,6 +45,13 @@ class TrainConfig:
     num_epochs: int = 20
     eval_interval: int = 5
     grad_accumulation_steps: int = 1
+
+    # SpecAugment
+    spec_augment: bool = False
+    spec_aug_freq_masks: int = 2
+    spec_aug_freq_width: int = 27
+    spec_aug_time_masks: int = 2
+    spec_aug_time_width: int = 100
 
     # Audio preprocessing
     n_mels: int = 128

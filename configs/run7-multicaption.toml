@@ -1,49 +1,42 @@
 [train]
-# Model architecture
+# Run 7: Cosine + SpecAugment + expanded dataset (all LP-MusicCaps captions)
+# Re-run ingest with --lp-all-captions before using this config.
 embed_dim = 256
 projection_hidden_dim = 512
 projection_depth = 3
 projection_dropout = 0.1
 temperature_init = 0.07
 
-# Encoder names
 text_encoder_name = "all-MiniLM-L6-v2"
 audio_encoder_name = "MIT/ast-finetuned-audioset-10-10-0.4593"
 
-# Encoder fine-tuning (run3 settings as default)
 unfreeze_audio_layers = 2
 encoder_learning_rate = 1e-5
 max_grad_norm = 1.0
 
-# LR schedule
 lr_schedule = "cosine"
 
-# Training
 batch_size = 100
 learning_rate = 3e-4
 weight_decay = 0.01
-warmup_steps = 100
-num_epochs = 100
+warmup_steps = 200
+num_epochs = 300
 eval_interval = 5
 grad_accumulation_steps = 4
 
-# SpecAugment (disabled by default)
-spec_augment = false
+spec_augment = true
 spec_aug_freq_masks = 2
 spec_aug_freq_width = 27
 spec_aug_time_masks = 2
 spec_aug_time_width = 100
 
-# Audio preprocessing
 n_mels = 128
 sample_rate = 16000
 max_audio_seconds = 10.0
 
-# Paths
 data_dir = "data"
 cache_dir = "data/cache"
-log_dir = "runs"
-checkpoint_dir = "checkpoints"
+log_dir = "runs/run7-multicaption"
+checkpoint_dir = "checkpoints/run7-multicaption"
 
-# Device: "auto" picks cuda if available, else cpu
 device = "auto"
