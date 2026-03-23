@@ -17,7 +17,7 @@ batch_size = 100
 learning_rate = 3e-4
 weight_decay = 0.01
 warmup_steps = 100
-num_epochs = 100
+num_epochs = 200
 eval_interval = 5
 grad_accumulation_steps = 4
 
