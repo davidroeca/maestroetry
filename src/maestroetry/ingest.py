@@ -297,6 +297,20 @@ def ingest(
             ingest_jamendo(data_dir, max_samples=max_samples_jamendo)
         )
 
+    # Deduplicate by caption text. Identical captions across different
+    # audio files are false negatives in the InfoNCE loss (the model
+    # cannot distinguish them), so we keep only the first occurrence.
+    seen_texts: set[str] = set()
+    deduped: list[dict[str, str]] = []
+    for row in all_rows:
+        if row["text"] not in seen_texts:
+            seen_texts.add(row["text"])
+            deduped.append(row)
+    n_dropped = len(all_rows) - len(deduped)
+    if n_dropped:
+        logger.info("Dropped %d rows with duplicate caption text", n_dropped)
+    all_rows = deduped
+
     fieldnames = ["audio_path", "text", "source"]
     with manifest_path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

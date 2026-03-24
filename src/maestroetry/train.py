@@ -13,7 +13,7 @@ import torch.optim.lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from maestroetry.dataset import AudioTextDataset
+from maestroetry.dataset import AudioTextDataset, UniqueAudioBatchSampler
 from maestroetry.encoders import (
     load_audio_encoder,
     load_text_encoder,
@@ -314,8 +314,10 @@ def train(
     use_cuda = config.device != "cpu"
     dataloader = DataLoader(
         train_dataset,
-        batch_size=config.batch_size,
-        shuffle=True,
+        batch_sampler=UniqueAudioBatchSampler(
+            train_dataset.track_ids,
+            batch_size=config.batch_size,
+        ),
         num_workers=2,
         pin_memory=use_cuda,
     )

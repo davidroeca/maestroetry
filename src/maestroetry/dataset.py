@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import csv
 import logging
+import math
 import random
+from collections.abc import Iterator
 from pathlib import Path
 
 import librosa
 import numpy as np
 import torch
 from torch import Tensor
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Sampler
 
 logger = logging.getLogger(__name__)
 
@@ -194,15 +196,19 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
     ) -> None:
         with Path(manifest_path).open(mode="r", encoding="utf8") as manifest_f:
             reader = csv.DictReader(manifest_f)
-            self.pairs = [
-                (
-                    audio_path_to_cache_location(
-                        audio_path=row["audio_path"], cache_dir=cache_dir
-                    ),
-                    row["text"],
-                )
-                for row in reader
-            ]
+            rows = list(reader)
+        self.pairs = [
+            (
+                audio_path_to_cache_location(
+                    audio_path=row["audio_path"], cache_dir=cache_dir
+                ),
+                row["text"],
+            )
+            for row in rows
+        ]
+        # Track IDs for UniqueAudioBatchSampler. Uses audio_path as
+        # the unique identifier for each underlying audio file.
+        self.track_ids: list[str] = [row["audio_path"] for row in rows]
         self.augment = augment
         self.spec_aug_freq_masks = spec_aug_freq_masks
         self.spec_aug_freq_width = spec_aug_freq_width
@@ -225,3 +231,56 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
                 time_width=self.spec_aug_time_width,
             )
         return spectrogram, text
+
+
+class UniqueAudioBatchSampler(Sampler[list[int]]):
+    """Batch sampler that prevents the same audio track from appearing
+    twice in a batch.
+
+    Rows sharing an audio_path have identical audio embeddings, so
+    allowing them in the same batch creates false negatives in the
+    InfoNCE loss. This sampler uses round-robin interleaving across
+    caption groups so that within any window of N_unique_tracks
+    consecutive indices, each track appears exactly once. Because
+    batch_size is much smaller than N_unique_tracks, batches will
+    never contain duplicate audio tracks.
+
+    Args:
+        track_ids: Per-row audio track identifier (audio_path).
+            Rows with the same track_id share the same audio file.
+        batch_size: Number of samples per batch.
+        drop_last: If True, drop the final batch when smaller than
+            batch_size.
+    """
+
+    def __init__(
+        self,
+        track_ids: list[str],
+        batch_size: int,
+        drop_last: bool = False,
+    ) -> None:
+        groups: dict[str, list[int]] = {}
+        for idx, tid in enumerate(track_ids):
+            groups.setdefault(tid, []).append(idx)
+        self._groups = list(groups.values())
+        self.batch_size = batch_size
+        self.drop_last = drop_last
+
+    def __len__(self) -> int:
+        # One item per unique track per epoch.
+        n = len(self._groups)
+        if self.drop_last:
+            return n // self.batch_size
+        return math.ceil(n / self.batch_size)
+
+    def __iter__(self) -> Iterator[list[int]]:
+        # Pick one caption per track at random each epoch so that over
+        # many epochs all caption variants are seen, while within any
+        # single batch each audio track appears at most once.
+        indices = [random.choice(g) for g in self._groups]
+        random.shuffle(indices)
+        for start in range(0, len(indices), self.batch_size):
+            batch = indices[start : start + self.batch_size]
+            if self.drop_last and len(batch) < self.batch_size:
+                break
+            yield batch
