@@ -35,7 +35,8 @@ behaviors:
   - name: ingest
     given: a data directory, configuration options for both data sources, and
       optional lp_all_captions flag
-    then: orchestrates ingest_lp_musiccaps and ingest_jamendo, producing a
+    then: orchestrates ingest_lp_musiccaps and ingest_jamendo, deduplicates
+      rows by caption text to avoid InfoNCE false negatives, and produces a
       unified manifest.csv with audio_path, text, and source columns;
       lp_all_captions is forwarded to ingest_lp_musiccaps to control caption
       expansion

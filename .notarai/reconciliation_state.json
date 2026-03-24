@@ -2,8 +2,8 @@
   "schema_version": "1",
   "cli_version": "0.5.0",
   "last_reconciliation": {
-    "timestamp": "1774310578Z",
-    "git_hash": "27c97c4be818dbc072214b1ca1ce382e27236aa1",
+    "timestamp": "1774312364Z",
+    "git_hash": "3f27ba8f2638556b516c94264aa7ee101cad83da",
     "branch": "main"
   },
   "file_fingerprints": {
@@ -47,7 +47,7 @@
       "blake3": "aac79fd85ee3892336144fa6ac5405b47b6b377a5b51685895ec8fb51ba5d547"
     },
     "src/maestroetry/dataset.py": {
-      "blake3": "0e5b70bdbf50c26ee406e57f31c37851d1f19e34006813fa74bdf7dfc891e2c4"
+      "blake3": "f0bc92c395ff8dd74c92083398e7406a07a9a1d16ff4d1ba0f75e76e5efaa228"
     },
     "src/maestroetry/encoders.py": {
       "blake3": "5e71098ad34ab3e8047c7c2a74161dc4bf89027dd3ba8a3babcc6e32b808fee9"
@@ -56,7 +56,7 @@
       "blake3": "d2e1f69ef22092e7472b285dba3c80800f24aff0e7f7dbef55f23be709c460a6"
     },
     "src/maestroetry/ingest.py": {
-      "blake3": "3cb22f500d64c29a976c0e1c43f1d7a12791c52bc1aaed9cc7ddb56614cd9598"
+      "blake3": "1c2c856e743823be1e3fbb8004007aa019c1cecaa03f92aa469586030d69f1f1"
     },
     "src/maestroetry/loss.py": {
       "blake3": "6999fdd487f84469ed105e6c5b502705c4149d4ee55cf2ac5db08dc43f676e57"
@@ -65,7 +65,7 @@
       "blake3": "f132f8db1d2392ed59e482e2b0d66d55ae809b5d6694fc0f2c0f202e26266f66"
     },
     "src/maestroetry/train.py": {
-      "blake3": "1e7eabade64062111a55d04e654586cc52a020c3be6ef70e1b494bb381854a45"
+      "blake3": "816192b3d77d4d06094171ffcd34db0bfcaf3a7ef873016961ee51f423a23909"
     },
     "tests/__init__.py": {
       "blake3": "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"

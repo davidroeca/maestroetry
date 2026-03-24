@@ -22,9 +22,15 @@ behaviors:
   - name: AudioTextDataset
     given: a CSV manifest with audio_path and text columns, a cache directory,
       and optional SpecAugment parameters
-    then: returns a Dataset that yields (spectrogram_tensor, text_string) tuples;
-      when augment is enabled, applies SpecAugment masking to each spectrogram
-      on load (operating on clones, so cached files are unmodified)
+    then: returns a Dataset that yields (spectrogram_tensor, text_string) tuples
+      and exposes a track_ids attribute for UniqueAudioBatchSampler; when augment
+      is enabled, applies SpecAugment masking to each spectrogram on load
+      (operating on clones, so cached files are unmodified)
+  - name: UniqueAudioBatchSampler
+    given: a list of per-row track IDs and a batch size
+    then: yields batches where each audio track appears at most once;
+      picks one caption variant per track at random each epoch so all
+      variants are seen over time
 
 constraints:
   - Mel spectrograms use 128 mel bins by default
