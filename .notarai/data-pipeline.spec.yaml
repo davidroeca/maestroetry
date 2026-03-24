@@ -15,9 +15,16 @@ behaviors:
   - name: cache_spectrograms
     given: a directory of audio files and a cache directory
     then: converts all audio files to mel spectrograms and saves as .pt files in the cache directory
+  - name: apply_spec_augment
+    given: a spectrogram tensor and frequency/time mask parameters
+    then: returns a cloned spectrogram with random frequency and time strips
+      zeroed out (SpecAugment masking); the original tensor is never modified
   - name: AudioTextDataset
-    given: a CSV manifest with audio_path and text columns, and a cache directory
-    then: returns a Dataset that yields (spectrogram_tensor, text_string) tuples
+    given: a CSV manifest with audio_path and text columns, a cache directory,
+      and optional SpecAugment parameters
+    then: returns a Dataset that yields (spectrogram_tensor, text_string) tuples;
+      when augment is enabled, applies SpecAugment masking to each spectrogram
+      on load (operating on clones, so cached files are unmodified)
 
 constraints:
   - Mel spectrograms use 128 mel bins by default

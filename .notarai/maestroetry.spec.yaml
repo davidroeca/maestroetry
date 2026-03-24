@@ -20,10 +20,12 @@ behaviors:
     given: a batch of N paired (text, audio) examples
     then: InfoNCE loss drives matched pairs to high cosine similarity and unmatched pairs apart
   - name: ingest_lp_musiccaps
-    given: a data directory, optional max_samples limit, and dataset split
-    then: loads LP-MusicCaps-MTT from HuggingFace, picks one of four caption
-      variants at random per track, writes audio to 16kHz mono WAV, and returns
-      manifest rows with source=lp_musiccaps
+    given: a data directory, optional max_samples limit, dataset split, and
+      optional all_captions flag
+    then: loads LP-MusicCaps-MTT from HuggingFace, by default picks one of four
+      caption variants at random per track; when all_captions is True, emits one
+      row per non-null variant (up to 4x more training pairs); writes audio to
+      16kHz mono WAV and returns manifest rows with source=lp_musiccaps
   - name: ingest_jamendo
     given: a data directory and optional max_samples limit
     then: loads MTG-Jamendo from HuggingFace, generates descriptive captions
@@ -31,9 +33,12 @@ behaviors:
       writes audio to 16kHz mono WAV, and returns manifest rows with
       source=jamendo
   - name: ingest
-    given: a data directory and configuration options for both data sources
+    given: a data directory, configuration options for both data sources, and
+      optional lp_all_captions flag
     then: orchestrates ingest_lp_musiccaps and ingest_jamendo, producing a
-      unified manifest.csv with audio_path, text, and source columns
+      unified manifest.csv with audio_path, text, and source columns;
+      lp_all_captions is forwarded to ingest_lp_musiccaps to control caption
+      expansion
 
 constraints:
   - Text encoder is always frozen; audio encoder is frozen by default but

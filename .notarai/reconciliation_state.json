@@ -2,8 +2,8 @@
   "schema_version": "1",
   "cli_version": "0.5.0",
   "last_reconciliation": {
-    "timestamp": "1774204039Z",
-    "git_hash": "9c2b37643e10c1bc561bcb85e14cda8af4bafb57",
+    "timestamp": "1774310578Z",
+    "git_hash": "27c97c4be818dbc072214b1ca1ce382e27236aa1",
     "branch": "main"
   },
   "file_fingerprints": {
@@ -11,7 +11,28 @@
       "blake3": "ce86adf5ec59579dd5562bfdc64d6fe0de3eb183a52631cfdffc8839056bf583"
     },
     "configs/default.toml": {
-      "blake3": "a00f034ec58bcd8094db63634136083ddc05ca50e21afd62f31337466db485c7"
+      "blake3": "4d268bf82cdc65aba37d106aa23c7761f4227697a96e48d8e8f744e6e1136d62"
+    },
+    "configs/run1-dropout-only.toml": {
+      "blake3": "749b9504806da8fd36614eff74b63e53985dfccf5262f87cfcfe7cdfe98ff654"
+    },
+    "configs/run2-deeper-heads.toml": {
+      "blake3": "41fb00872c360978c097b29bc609ce66d90d0f850c6c31e054af0b1de19b78d4"
+    },
+    "configs/run3-unfreeze-2.toml": {
+      "blake3": "3a22d18990e2c3ddac941886976e2babb9679a3e1394766aca6a5b991ad39208"
+    },
+    "configs/run4-unfreeze-4.toml": {
+      "blake3": "2c303b8b1da278573769f9118d60ca5af12665a31b5a1ba34fced3bfe920ea43"
+    },
+    "configs/run5-cosine-schedule.toml": {
+      "blake3": "2c4e6a1c7756d7afec4a95edb6de785e9e1e4e8d3dea1ce6d67d41355572a533"
+    },
+    "configs/run6-spec-augment.toml": {
+      "blake3": "9f6ef095328e2a1c4dc12fd1f806fe5a0d282aad539f23149b803269f14841f3"
+    },
+    "configs/run7-multicaption.toml": {
+      "blake3": "66108b9353e53ce15f337be1e80ac7458ff565297300335e3eef2fa5c7e9e76c"
     },
     "main.py": {
       "blake3": "6bac9b8fb309e4ae60056d42c219a5f749ac6e4889a5a9d5772eb9e60e9bc122"
@@ -23,10 +44,10 @@
       "blake3": "6d248d91b44e2db6bd8ed2e0e62696ab0c6546a451cf2f149c4860bc3b962bf4"
     },
     "src/maestroetry/config.py": {
-      "blake3": "bed06eec1901dad8058fc976a6d0fc50e8c53208e2650849bc072a5b4167402b"
+      "blake3": "aac79fd85ee3892336144fa6ac5405b47b6b377a5b51685895ec8fb51ba5d547"
     },
     "src/maestroetry/dataset.py": {
-      "blake3": "99129c1f4a0db5152840cd5ecea10f0c6c497b0f7d01970c77d00b947b63f504"
+      "blake3": "0e5b70bdbf50c26ee406e57f31c37851d1f19e34006813fa74bdf7dfc891e2c4"
     },
     "src/maestroetry/encoders.py": {
       "blake3": "5e71098ad34ab3e8047c7c2a74161dc4bf89027dd3ba8a3babcc6e32b808fee9"
@@ -35,7 +56,7 @@
       "blake3": "d2e1f69ef22092e7472b285dba3c80800f24aff0e7f7dbef55f23be709c460a6"
     },
     "src/maestroetry/ingest.py": {
-      "blake3": "44ba8ab93c7d4fa8a8e8178853f2c5082b5d2a861c3e1a98835411b2a59b89f6"
+      "blake3": "3cb22f500d64c29a976c0e1c43f1d7a12791c52bc1aaed9cc7ddb56614cd9598"
     },
     "src/maestroetry/loss.py": {
       "blake3": "6999fdd487f84469ed105e6c5b502705c4149d4ee55cf2ac5db08dc43f676e57"
@@ -44,7 +65,7 @@
       "blake3": "f132f8db1d2392ed59e482e2b0d66d55ae809b5d6694fc0f2c0f202e26266f66"
     },
     "src/maestroetry/train.py": {
-      "blake3": "26f44508212185ff2e022a564bdfb71bc78d03991064b50d57560afaeccb5dd0"
+      "blake3": "1e7eabade64062111a55d04e654586cc52a020c3be6ef70e1b494bb381854a45"
     },
     "tests/__init__.py": {
       "blake3": "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"

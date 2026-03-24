@@ -18,7 +18,8 @@ behaviors:
   - name: train
     given: a TrainConfig with all hyperparameters and an optional checkpoint path to resume from
     then: loads encoders, builds model, trains for num_epochs with TensorBoard logging
-      for loss and Recall@k metrics; metrics are evaluated every eval_interval epochs
+      for loss and Recall@k metrics using separate train (with optional SpecAugment)
+      and eval (no augmentation) dataloaders; metrics are evaluated every eval_interval epochs
       and always on the final epoch; saves a single best.pt checkpoint (overwritten
       when R@1 improves); supports resuming from a prior checkpoint; when
       unfreeze_audio_layers > 0, applies differential learning rates (encoder_learning_rate
@@ -43,7 +44,8 @@ behaviors:
 
 constraints:
   - InfoNCE loss is symmetric (both directions averaged)
-  - "Optimizer: AdamW with lr=5e-4 and linear warmup"
+  - "Optimizer: AdamW with lr=3e-4 and configurable LR schedule (linear warmup
+    or cosine warmup+decay, default cosine)"
   - By default gradients flow only through projection heads and temperature;
     when unfreeze_audio_layers > 0, gradients also flow through the top N
     audio encoder layers at a separate learning rate (encoder_learning_rate)
@@ -52,7 +54,9 @@ constraints:
   - Recall@k metrics are logged every eval_interval epochs (and always on the final epoch)
   - "checkpoint_dir is configurable via TrainConfig and CLI override"
   - "New config fields: projection_depth, projection_dropout,
-    unfreeze_audio_layers, encoder_learning_rate, max_grad_norm"
+    unfreeze_audio_layers, encoder_learning_rate, max_grad_norm, lr_schedule,
+    spec_augment, spec_aug_freq_masks, spec_aug_freq_width,
+    spec_aug_time_masks, spec_aug_time_width"
 
 invariants:
   - Random embeddings produce loss approximately equal to log(batch_size)
