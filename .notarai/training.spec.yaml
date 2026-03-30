@@ -44,16 +44,17 @@ behaviors:
 
 constraints:
   - InfoNCE loss is symmetric (both directions averaged)
-  - "Optimizer: AdamW with lr=3e-4 and configurable LR schedule (linear warmup
-    or cosine warmup+decay, default cosine)"
-  - By default gradients flow only through projection heads and temperature;
-    when unfreeze_audio_layers > 0, gradients also flow through the top N
-    audio encoder layers at a separate learning rate (encoder_learning_rate)
-  - "Default batch size: 100"
+  - "Optimizer: AdamW with lr=3e-4 and cosine warmup+decay schedule
+    (200 warmup steps, 300 epochs)"
+  - "Default: top 2 audio encoder layers are unfrozen and trained at
+    encoder_learning_rate=1e-5 with gradient clipping (max_grad_norm=1.0);
+    projection heads use the main learning_rate=3e-4"
+  - "Default batch size: 100, gradient accumulation steps: 4 (effective batch 400)"
+  - "SpecAugment enabled by default (2 freq masks width 27, 2 time masks width 100)"
   - TensorBoard logging for loss and metrics
   - Recall@k metrics are logged every eval_interval epochs (and always on the final epoch)
   - "checkpoint_dir is configurable via TrainConfig and CLI override"
-  - "New config fields: projection_depth, projection_dropout,
+  - "Config fields: projection_depth, projection_dropout,
     unfreeze_audio_layers, encoder_learning_rate, max_grad_norm, lr_schedule,
     spec_augment, spec_aug_freq_masks, spec_aug_freq_width,
     spec_aug_time_masks, spec_aug_time_width"
@@ -77,6 +78,9 @@ artifacts:
   configs:
     - path: "configs/default.toml"
       role: default hyperparameters
+  docs:
+    - path: "docs/TRAINING_LOG.md"
+      role: experiment history and results across training runs
   tests:
     - path: "tests/test_loss.py"
       role: InfoNCE loss tests

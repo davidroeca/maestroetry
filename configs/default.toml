@@ -10,7 +10,7 @@ temperature_init = 0.07
 text_encoder_name = "all-MiniLM-L6-v2"
 audio_encoder_name = "MIT/ast-finetuned-audioset-10-10-0.4593"
 
-# Encoder fine-tuning (run3 settings as default)
+# Encoder fine-tuning
 unfreeze_audio_layers = 2
 encoder_learning_rate = 1e-5
 max_grad_norm = 1.0
@@ -22,13 +22,13 @@ lr_schedule = "cosine"
 batch_size = 100
 learning_rate = 3e-4
 weight_decay = 0.01
-warmup_steps = 100
-num_epochs = 100
+warmup_steps = 200
+num_epochs = 300
 eval_interval = 5
 grad_accumulation_steps = 4
 
-# SpecAugment (disabled by default)
-spec_augment = false
+# SpecAugment
+spec_augment = true
 spec_aug_freq_masks = 2
 spec_aug_freq_width = 27
 spec_aug_time_masks = 2

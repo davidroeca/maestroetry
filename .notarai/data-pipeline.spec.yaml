@@ -38,8 +38,10 @@ constraints:
   - Cached spectrograms stored as .pt tensor files
   - Dataset reads from a CSV manifest with audio_path and text columns
   - Manifest includes a source column (lp_musiccaps or jamendo) to distinguish data origin
-  - "Two-tier data strategy: LP-MusicCaps provides LLM-generated captions (~3K tracks),
-    Jamendo provides programmatic captions from genre/instrument/mood tags (~10.5K tracks)"
+  - "Two-tier data strategy: LP-MusicCaps provides 4 LLM-generated caption variants
+    per track (~3K tracks, all variants used by default for ~12K+ pairs),
+    Jamendo provides programmatic captions from genre/instrument/mood tags
+    (~10.5K tracks); total ~22-25K training pairs"
 
 invariants:
   - Spectrogram output is a 2D tensor (time_frames, n_mels) of shape (1024, 128)

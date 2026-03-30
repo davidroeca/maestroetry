@@ -30,7 +30,7 @@ class TrainConfig:
     audio_encoder_name: str = "MIT/ast-finetuned-audioset-10-10-0.4593"
 
     # Encoder fine-tuning
-    unfreeze_audio_layers: int = 0
+    unfreeze_audio_layers: int = 2
     encoder_learning_rate: float = 1e-5
     max_grad_norm: float = 1.0
 
@@ -38,16 +38,16 @@ class TrainConfig:
     lr_schedule: Literal["linear", "cosine"] = "cosine"
 
     # Training
-    batch_size: int = 64
+    batch_size: int = 100
     learning_rate: float = 3e-4
     weight_decay: float = 0.01
-    warmup_steps: int = 100
-    num_epochs: int = 20
+    warmup_steps: int = 200
+    num_epochs: int = 300
     eval_interval: int = 5
-    grad_accumulation_steps: int = 1
+    grad_accumulation_steps: int = 4
 
     # SpecAugment
-    spec_augment: bool = False
+    spec_augment: bool = True
     spec_aug_freq_masks: int = 2
     spec_aug_freq_width: int = 27
     spec_aug_time_masks: int = 2

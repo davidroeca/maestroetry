@@ -42,13 +42,12 @@ behaviors:
       expansion
 
 constraints:
-  - Text encoder is always frozen; audio encoder is frozen by default but
-    optionally the top N layers can be unfrozen for fine-tuning
+  - Text encoder is always frozen; top 2 audio encoder layers are unfrozen
+    by default for fine-tuning at a differential learning rate
   - Shared embedding space is 256-dimensional with L2 normalization
   - Must be trainable on a single consumer GPU or free Colab instance
-  - Projection heads and temperature are always trainable; when
-    unfreeze_audio_layers > 0, the top N audio encoder layers are
-    also trainable at a separate learning rate
+  - Projection heads and temperature are always trainable; unfrozen audio
+    encoder layers train at encoder_learning_rate with gradient clipping
 
 invariants:
   - Matched text-audio pairs have higher cosine similarity than unmatched pairs after training
@@ -56,15 +55,21 @@ invariants:
   - Frozen encoder weights are never modified during training
 
 decisions:
+  - date: "2026-03-29"
+    choice: Use all LP-MusicCaps caption variants by default (multi-caption ingestion)
+    rationale: >
+      Expanding from 1 random caption per LP-MusicCaps track to all 4 variants
+      grew the dataset from ~13.5K to ~22-25K pairs. This was the single largest
+      factor in improving R@1 from ~0.29 to ~0.99. Combined with cosine LR
+      schedule, SpecAugment, and unfrozen top 2 AST layers.
   - date: "2026-03-18"
     choice: Replace SDD+FMA ingest with LP-MusicCaps-MTT + MTG-Jamendo
     rationale: >
       SDD is eval-only and shouldn't be used for training. FMA captions are
       low-quality templates. LP-MusicCaps provides ~3K tracks with LLM-generated
       captions and bundled audio. MTG-Jamendo provides ~10.5K tracks with
-      genre/instrument/mood tags for programmatic caption generation. Total
-      ~13.5K training pairs (up from ~9K), all CC-licensed and fetched via
-      HuggingFace datasets library.
+      genre/instrument/mood tags for programmatic caption generation. All
+      CC-licensed and fetched via HuggingFace datasets library.
   - date: "2026-03-16"
     choice: Replace MusicCaps/YouTube ingest with Song Describer Dataset + FMA
     rationale: >
@@ -99,6 +104,9 @@ artifacts:
   configs:
     - path: "configs/*.toml"
       role: training hyperparameter configs
+  docs:
+    - path: "docs/TRAINING_LOG.md"
+      role: experiment history and results across training runs
 
 subsystems:
   - $ref: "./encoders.spec.yaml"

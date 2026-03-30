@@ -4,10 +4,10 @@ Contrastive text-audio retrieval model inspired by CLIP. Aligns text (poems, lyr
 
 ## How it works
 
-Two frozen pretrained encoders extract features from each modality:
+Two pretrained encoders extract features from each modality:
 
-- **Text:** `all-MiniLM-L6-v2` (384-dim)
-- **Audio:** `MIT/ast-finetuned-audioset-10-10-0.4593` (AST, 768-dim)
+- **Text:** `all-MiniLM-L6-v2` (384-dim, frozen)
+- **Audio:** `MIT/ast-finetuned-audioset-10-10-0.4593` (AST, 768-dim, top 2 layers fine-tuned)
 
 Small trainable projection heads map both into a shared 256-dimensional L2-normalized space. Training minimizes symmetric **InfoNCE loss** over in-batch negatives, with a learnable temperature scalar.
 
@@ -43,7 +43,7 @@ Downloads audio from two CC-licensed HuggingFace datasets and writes `data/manif
 - **MTG-Jamendo:** ~10.5K tracks with programmatic captions from genre/instrument/mood tags (volume)
 
 ```bash
-# Download both LP-MusicCaps and Jamendo (~13.5K pairs total)
+# Download both LP-MusicCaps and Jamendo (~22-25K pairs total)
 poe run python main.py ingest
 
 # LP-MusicCaps only (smaller, faster)
@@ -92,22 +92,28 @@ Training saves a single `best.pt` checkpoint, overwritten whenever Recall@1 impr
 | Projection dropout | 0.1 |
 | Batch size | 100 |
 | Gradient accumulation steps | 4 (effective batch 400) |
-| Learning rate | 5e-4 (AdamW) |
+| Learning rate | 3e-4 (AdamW) |
+| LR schedule | Cosine warmup + decay |
+| Warmup steps | 200 |
+| Epochs | 300 |
 | Temperature | 0.07 (learnable) |
-| Unfrozen audio layers | 0 |
+| Unfrozen audio layers | 2 |
 | Encoder learning rate | 1e-5 |
 | Max gradient norm | 1.0 |
+| SpecAugment | Enabled (2 freq masks, 2 time masks) |
 | Mel bins | 128 |
 | Max audio length | 10s |
 
+See [docs/TRAINING_LOG.md](docs/TRAINING_LOG.md) for the full experiment history and results.
+
 ## Data
 
-A few thousand well-curated pairs is enough. The frozen encoders provide strong representations; the projection heads just learn the alignment. The built-in ingest pipeline uses two tiers:
+The built-in ingest pipeline uses two tiers:
 
-- **LP-MusicCaps-MTT:** ~3K tracks with LLM-generated captions (`mulab-mir/lp-music-caps-magnatagatune-3k`)
+- **LP-MusicCaps-MTT:** ~3K tracks with 4 LLM-generated caption variants each (`mulab-mir/lp-music-caps-magnatagatune-3k`). All caption variants are used by default, yielding ~12K+ text-audio pairs.
 - **MTG-Jamendo:** ~10.5K tracks with programmatic captions from genre/instrument/mood tags (`vtsouval/mtg_jamendo_autotagging`)
 
-Both are CC-licensed and fetched via the HuggingFace `datasets` library (no YouTube/yt-dlp dependency).
+Total: ~22-25K training pairs. Both are CC-licensed and fetched via the HuggingFace `datasets` library (no YouTube/yt-dlp dependency).
 
 ## Attribution
 
