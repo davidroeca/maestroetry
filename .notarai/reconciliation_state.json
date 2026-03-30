@@ -1,9 +1,9 @@
 {
   "schema_version": "1",
-  "cli_version": "0.5.0",
+  "cli_version": "0.5.1",
   "last_reconciliation": {
-    "timestamp": "1774312364Z",
-    "git_hash": "3f27ba8f2638556b516c94264aa7ee101cad83da",
+    "timestamp": "1774845591Z",
+    "git_hash": "dfd974eb721705db8aa43021e126a1a5e0d60938",
     "branch": "main"
   },
   "file_fingerprints": {
@@ -11,7 +11,7 @@
       "blake3": "ce86adf5ec59579dd5562bfdc64d6fe0de3eb183a52631cfdffc8839056bf583"
     },
     "configs/default.toml": {
-      "blake3": "4d268bf82cdc65aba37d106aa23c7761f4227697a96e48d8e8f744e6e1136d62"
+      "blake3": "992d535d2fbc08897409fea299adb31b9a567c2a63ebae890f106c9b8116f182"
     },
     "configs/run1-dropout-only.toml": {
       "blake3": "749b9504806da8fd36614eff74b63e53985dfccf5262f87cfcfe7cdfe98ff654"
@@ -34,6 +34,9 @@
     "configs/run7-multicaption.toml": {
       "blake3": "66108b9353e53ce15f337be1e80ac7458ff565297300335e3eef2fa5c7e9e76c"
     },
+    "docs/TRAINING_LOG.md": {
+      "blake3": "93b08638999cd366bdf44bebdbd263254e37589e4a79db7469d8631ee39ef934"
+    },
     "main.py": {
       "blake3": "6bac9b8fb309e4ae60056d42c219a5f749ac6e4889a5a9d5772eb9e60e9bc122"
     },
@@ -44,7 +47,7 @@
       "blake3": "6d248d91b44e2db6bd8ed2e0e62696ab0c6546a451cf2f149c4860bc3b962bf4"
     },
     "src/maestroetry/config.py": {
-      "blake3": "aac79fd85ee3892336144fa6ac5405b47b6b377a5b51685895ec8fb51ba5d547"
+      "blake3": "771de02ef7bbedc8c77780ad683f26c30dd964f6e06c4fcb41fd2dfa5db6ab63"
     },
     "src/maestroetry/dataset.py": {
       "blake3": "f0bc92c395ff8dd74c92083398e7406a07a9a1d16ff4d1ba0f75e76e5efaa228"
