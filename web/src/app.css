@@ -1,0 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
+
+:root {
+  --cream: #f5f0e8;
+  --burgundy: #722f37;
+  --gold: #c5a55a;
+  --dark-brown: #3c2415;
+  --ink: #2c1810;
+  --border: rgba(197, 165, 90, 0.35);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--cream);
+  /* Subtle paper-grain texture using radial gradients */
+  background-image: radial-gradient(
+      ellipse at 20% 30%,
+      rgba(197, 165, 90, 0.05) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse at 80% 70%,
+      rgba(114, 47, 55, 0.04) 0%,
+      transparent 60%
+    );
+  color: var(--ink);
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 18px;
+  line-height: 1.65;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  line-height: 1.2;
+}
+
+a {
+  color: var(--burgundy);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  color: #8b3a44;
+}
+
+/* App shell */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  border-bottom: 1px solid var(--border);
+  padding: 2rem 1rem 1.5rem;
+  text-align: center;
+  background: linear-gradient(
+    to bottom,
+    rgba(197, 165, 90, 0.08),
+    transparent
+  );
+}
+
+.header-crown {
+  color: var(--gold);
+  font-size: 1.2rem;
+  letter-spacing: 0.5em;
+  display: block;
+  margin-bottom: 0.25rem;
+  user-select: none;
+}
+
+.app-title {
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  color: var(--burgundy);
+  margin: 0 0 0.15rem;
+  letter-spacing: 0.03em;
+}
+
+.app-subtitle {
+  font-size: 1rem;
+  color: var(--dark-brown);
+  opacity: 0.75;
+  margin: 0.1rem 0 0;
+  font-style: italic;
+}
+
+.app-main {
+  flex: 1;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.app-footer {
+  border-top: 1px solid var(--border);
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.8rem;
+  color: var(--dark-brown);
+  opacity: 0.65;
+}
+
+/* Section headings */
+.section-heading {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.5rem;
+  color: var(--burgundy);
+  text-align: center;
+  margin: 0 0 0.35rem;
+}
+
+.section-sub {
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--dark-brown);
+  opacity: 0.75;
+  margin: 0 0 1.25rem;
+}
+
+/* Status messages */
+.status-hint {
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--dark-brown);
+  opacity: 0.7;
+  margin: 0.75rem 0;
+  font-style: italic;
+}
+
+.status-error {
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--burgundy);
+  margin: 0.75rem 0;
+}

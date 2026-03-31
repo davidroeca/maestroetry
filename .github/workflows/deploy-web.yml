@@ -1,0 +1,70 @@
+name: Deploy Web Demo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/deploy-web.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Download assets from latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 \
+                  --json tagName --jq '.[0].tagName')
+          if [ -z "$tag" ]; then
+            echo "::error::No GitHub release found. Run scripts/upload-demo-audio.sh first."
+            exit 1
+          fi
+          echo "Downloading assets from release $tag"
+          gh release download "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "demo-audio.tar.gz" \
+            --pattern "demo-data.tar.gz" \
+            --dir .
+          mkdir -p web/static/audio web/static/data
+          tar -xzf demo-audio.tar.gz -C web/static/audio
+          tar -xzf demo-data.tar.gz -C web/static/data
+
+      - name: Install and build
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

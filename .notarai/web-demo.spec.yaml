@@ -1,0 +1,91 @@
+schema_version: "0.7"
+domain: research
+tier: full
+
+intent: |
+  Fully static SPA (deployable to GitHub Pages, no server) demonstrating
+  text-to-music search and similar track finding over 15 curated public
+  domain recordings. Audio embeddings are pre-computed offline by
+  export_web_data.py. Only the text encoder (Xenova/all-MiniLM-L6-v2,
+  ~23 MB quantized via Transformers.js) and the text projection head
+  (pure TypeScript) run in-browser.
+
+behaviors:
+  - name: text_search
+    given: a text query describing mood, instrumentation, or character
+    then: encodes via Transformers.js + TypeScript projection head, ranks
+      all 15 tracks by cosine similarity, displays results with scores
+  - name: similar_finder
+    given: a selected track from the 15-track corpus
+    then: ranks remaining tracks by embedding distance, displays results
+      immediately with no model loading required
+  - name: audio_playback
+    given: any visible track card
+    then: plays the corresponding MP3 clip via HTML5 audio element
+  - name: model_loading
+    given: the page loads for the first time
+    then: shows a loading overlay with download progress while
+      Transformers.js fetches the quantized model from the CDN;
+      similar finder is usable immediately without waiting
+
+constraints:
+  - Text encoder runs in a Web Worker to keep the main thread responsive
+  - Only the text projection head runs in-browser; audio embeddings are
+    pre-computed by export_web_data.py and served as static JSON
+  - Output must be a fully static site with no server-side rendering at
+    runtime (prerender = true, adapter-static)
+  - TypeScript projection head must match Python output exactly (validated
+    by export_web_data.py before the data files are written)
+
+invariants:
+  - >-
+    Text projection head forward pass is identical to the Python model:
+    Linear -> ReLU -> Linear -> ReLU -> Linear -> L2 normalize
+  - All embeddings in the browser are L2-normalized; similarity is dot
+    product (equals cosine similarity for unit vectors)
+  - >-
+    The quantized Transformers.js model is Xenova/all-MiniLM-L6-v2,
+    the same architecture as the Python all-MiniLM-L6-v2 text encoder
+
+decisions:
+  - date: "2026-03-30"
+    choice: Pre-compute audio embeddings offline, run only text encoder in-browser
+    rationale: >
+      The AST audio encoder (~90 MB) is too large for browser inference.
+      Pre-computing and serving audio embeddings as static JSON keeps the
+      page lightweight. Only the text projection head (~2 MB weights) and
+      the MiniLM text encoder (~23 MB quantized) need to run in-browser.
+  - date: "2026-03-30"
+    choice: Web Worker for Transformers.js, TypeScript for projection head
+    rationale: >
+      Transformers.js model loading blocks the main thread for several
+      seconds. Running it in a Web Worker keeps the UI responsive. The
+      projection head is simple enough (3 linear layers) to implement
+      as pure TypeScript matrix math without any ML framework overhead.
+  - date: "2026-03-30"
+    choice: Victoriana design theme with Playfair Display and EB Garamond
+    rationale: >
+      Classical music corpus (Baroque, Romantic, Classical eras) pairs
+      naturally with a Victorian aesthetic. The ornate typographic style
+      reinforces the historical character of the recordings.
+
+artifacts:
+  code:
+    - path: "web/src/**/*.{ts,svelte}"
+      role: SvelteKit SPA source
+    - path: "web/src/lib/inference/worker.ts"
+      role: Web Worker for Transformers.js text encoding
+    - path: "web/src/lib/inference/projection.ts"
+      role: TypeScript projection head (must match Python model)
+    - path: "web/src/lib/inference/similarity.ts"
+      role: dot product similarity scoring
+    - path: "web/src/lib/stores/model.svelte.ts"
+      role: model loading state and encodeText()
+    - path: "web/src/lib/stores/tracks.ts"
+      role: track data loading, search, and similar finder
+    - path: "export_web_data.py"
+      role: offline export of projection weights and audio embeddings
+
+dependencies:
+  - $ref: "./projection.spec.yaml"
+    relationship: web demo consumes text projection head weights exported from the trained model

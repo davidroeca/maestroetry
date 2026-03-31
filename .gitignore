@@ -15,3 +15,12 @@ runs/
 
 # Machine-local uv config (hardware-specific extras)
 uv.toml
+
+# Web demo: local download instructions and audio files (not committed)
+demo_audio/
+demo_tracks.csv
+web/static/audio/
+web/static/data/
+web/build/
+web/node_modules/
+web/.svelte-kit/

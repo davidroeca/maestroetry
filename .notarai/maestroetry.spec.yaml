@@ -113,3 +113,4 @@ subsystems:
   - $ref: "./projection.spec.yaml"
   - $ref: "./data-pipeline.spec.yaml"
   - $ref: "./training.spec.yaml"
+  - $ref: "./web-demo.spec.yaml"
