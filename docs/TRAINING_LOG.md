@@ -22,14 +22,14 @@ Dataset: LP-MusicCaps + Jamendo.
 - **Config:** `projection_depth=2`, `dropout=0.1`, frozen encoders, `lr=5e-4`
 - **Epochs:** 100 (best at 5)
 - **Goal:** Isolate the effect of dropout regularization on a shallow projection head.
-- **Result:** Effectively random. Shallow head was insufficient.
+- **Result:** R@1 at final epoch not saved due to software bug fixed by run 2 (but was lower than run 2).
 
 ## Run 2: Deeper projection heads
 
 - **Config:** `projection_depth=3`, `dropout=0.1`, frozen encoders, `lr=5e-4`
 - **Epochs:** 100
 - **Goal:** Establish whether a deeper projection head improves alignment.
-- **Result:** First real learning. Depth=3 became the standard going forward.
+- **Result:** First real learning saved. Depth=3 became the standard going forward.
 
 ## Run 3: Unfreeze top 2 AST layers
 
@@ -65,10 +65,8 @@ Dataset: LP-MusicCaps + Jamendo.
 - **Dataset change:** Re-ingested LP-MusicCaps with all caption variants (all 4 captions per track, ~22-25K pairs vs. ~13.5K)
 - **Resume:** From run 6 best checkpoint (weights only)
 - **Goal:** Expand training signal by using all available captions per audio track.
-- **Result:** 0.9949 t2a R@1. The dataset expansion was by far the largest single factor.
+- **Result:** This may be an over-fitting result.
 
 ## Key Takeaways
 
-1. Projection depth=3 was necessary for learning to begin (run 1 vs run 2).
-2. Architectural and schedule changes (runs 3-6) yielded diminishing returns in the 0.26-0.29 range.
-3. Expanding the dataset with multi-caption ingestion was the breakthrough, jumping from ~0.27 to ~0.99.
+1. Architectural and schedule changes (runs 3-6) yielded diminishing returns in the 0.26-0.29 range.
