@@ -12,13 +12,17 @@
   let results: ScoredTrack[] = $state([]);
 
   function selectTrack(id: number) {
-    selectedId = id;
-    results = findSimilar(id, tracksData);
+    if (selectedId === id) {
+      selectedId = null;
+      results = [];
+    } else {
+      selectedId = id;
+      results = findSimilar(id, tracksData);
+    }
   }
 </script>
 
 <section class="similar-finder">
-  <h2 class="section-title">Similar Track Finder</h2>
   <p class="section-hint">
     Select a track to find the most similar pieces by embedding distance.
     Works without loading the text model.
@@ -53,14 +57,6 @@
   .similar-finder {
     max-width: 800px;
     margin: 0 auto;
-  }
-
-  .section-title {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 1.5rem;
-    color: var(--burgundy);
-    margin: 0 0 0.4rem;
-    text-align: center;
   }
 
   .section-hint {

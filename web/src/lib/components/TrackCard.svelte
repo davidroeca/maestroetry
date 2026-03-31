@@ -8,6 +8,13 @@
   let { track, showScore = true }: Props = $props();
 
   let audioSrc = $derived(`/audio/${track.filename}`);
+  let audioEl: HTMLAudioElement | undefined = $state();
+
+  function handlePlay() {
+    document.querySelectorAll('audio').forEach((el) => {
+      if (el !== audioEl) el.pause();
+    });
+  }
 </script>
 
 <article class="track-card">
@@ -27,7 +34,7 @@
     {/if}
   </div>
   <p class="track-description">{track.description}</p>
-  <audio controls src={audioSrc} class="audio-player" preload="none">
+  <audio bind:this={audioEl} controls src={audioSrc} class="audio-player" preload="none" onplay={handlePlay}>
     Your browser does not support audio playback.
   </audio>
 </article>
