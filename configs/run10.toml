@@ -1,5 +1,5 @@
 [train]
-# Run 10: Hard negative mining + partial text encoder unfreezing
+# Run 10: partial text encoder unfreezing
 #
 # Builds on run 9 by unfreezing the top 2 MiniLM layers alongside
 # the hard negative weighting from run 9.
