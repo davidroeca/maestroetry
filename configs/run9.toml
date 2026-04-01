@@ -1,4 +1,9 @@
 [train]
+# Run 9: Hard negative mining (beta=2.0), text encoder frozen
+#
+# Same base config as default, with hard_negative_weight enabled
+# to emphasize difficult negatives in InfoNCE loss.
+
 # Model architecture
 embed_dim = 256
 projection_hidden_dim = 512
@@ -15,7 +20,7 @@ unfreeze_audio_layers = 2
 unfreeze_text_layers = 0
 encoder_learning_rate = 1e-5
 max_grad_norm = 1.0
-hard_negative_weight = 1.0
+hard_negative_weight = 2.0
 
 # LR schedule
 lr_schedule = "cosine"
@@ -44,8 +49,8 @@ max_audio_seconds = 10.0
 # Paths
 data_dir = "data"
 cache_dir = "data/cache"
-log_dir = "runs"
-checkpoint_dir = "checkpoints"
+log_dir = "runs/run9"
+checkpoint_dir = "checkpoints/run9"
 
-# Device: "auto" picks cuda if available, else cpu
+# Device
 device = "auto"

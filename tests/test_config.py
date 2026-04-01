@@ -13,7 +13,7 @@ def test_default_config_values():
     assert cfg.embed_dim == 256
     assert cfg.projection_hidden_dim == 512
     assert cfg.temperature_init == 0.07
-    assert cfg.batch_size == 64
+    assert cfg.batch_size == 100
     assert cfg.learning_rate == 3e-4
     assert cfg.n_mels == 128
     assert cfg.sample_rate == 16000

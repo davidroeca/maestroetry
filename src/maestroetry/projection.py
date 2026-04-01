@@ -88,12 +88,14 @@ class ContrastiveModel(nn.Module):
         projection_dropout: float = 0.1,
         temperature_init: float = 0.07,
         finetune_audio: bool = False,
+        finetune_text: bool = False,
     ) -> None:
         super().__init__()
         self.text_encoder = text_encoder
         self.audio_encoder = audio_encoder
         self.audio_extractor = audio_extractor
         self.finetune_audio = finetune_audio
+        self.finetune_text = finetune_text
         self.log_temperature = nn.Parameter(
             torch.tensor(temperature_init).log()
         )
@@ -128,7 +130,13 @@ class ContrastiveModel(nn.Module):
             embeds are ``(N, projection_out)`` and temperature
             is a positive scalar tensor.
         """
-        text_embeds = encoders.encode_text(self.text_encoder, texts).detach()
+        text_embeds = encoders.encode_text(
+            self.text_encoder,
+            texts,
+            training=self.finetune_text and self.training,
+        )
+        if not self.finetune_text:
+            text_embeds = text_embeds.detach()
         audio_embeds = encoders.encode_audio(
             self.audio_encoder,
             self.audio_extractor,
@@ -162,14 +170,22 @@ def get_trainable_params(
     Returns:
         Parameter list or param groups suitable for an optimizer.
     """
-    if encoder_lr is not None and model.finetune_audio:
-        encoder_params = [
-            p for p in model.audio_encoder.parameters() if p.requires_grad
-        ]
+    if encoder_lr is not None and (model.finetune_audio or model.finetune_text):
+        encoder_params: list[nn.Parameter] = []
+        if model.finetune_audio:
+            encoder_params.extend(
+                p for p in model.audio_encoder.parameters() if p.requires_grad
+            )
+        if model.finetune_text:
+            encoder_params.extend(
+                p for p in model.text_encoder.parameters() if p.requires_grad
+            )
         projection_params = [
             p
             for name, p in model.named_parameters()
-            if p.requires_grad and "audio_encoder" not in name
+            if p.requires_grad
+            and "audio_encoder" not in name
+            and "text_encoder" not in name
         ]
         return [
             {"params": projection_params},

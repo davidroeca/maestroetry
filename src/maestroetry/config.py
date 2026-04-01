@@ -31,8 +31,10 @@ class TrainConfig:
 
     # Encoder fine-tuning
     unfreeze_audio_layers: int = 2
+    unfreeze_text_layers: int = 0
     encoder_learning_rate: float = 1e-5
     max_grad_norm: float = 1.0
+    hard_negative_weight: float = 1.0
 
     # LR schedule
     lr_schedule: Literal["linear", "cosine"] = "cosine"

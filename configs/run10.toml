@@ -1,4 +1,9 @@
 [train]
+# Run 10: Hard negative mining + partial text encoder unfreezing
+#
+# Builds on run 9 by unfreezing the top 2 MiniLM layers alongside
+# the hard negative weighting from run 9.
+
 # Model architecture
 embed_dim = 256
 projection_hidden_dim = 512
@@ -12,10 +17,10 @@ audio_encoder_name = "MIT/ast-finetuned-audioset-10-10-0.4593"
 
 # Encoder fine-tuning
 unfreeze_audio_layers = 2
-unfreeze_text_layers = 0
+unfreeze_text_layers = 2
 encoder_learning_rate = 1e-5
 max_grad_norm = 1.0
-hard_negative_weight = 1.0
+hard_negative_weight = 2.0
 
 # LR schedule
 lr_schedule = "cosine"
@@ -44,8 +49,8 @@ max_audio_seconds = 10.0
 # Paths
 data_dir = "data"
 cache_dir = "data/cache"
-log_dir = "runs"
-checkpoint_dir = "checkpoints"
+log_dir = "runs/run10"
+checkpoint_dir = "checkpoints/run10"
 
-# Device: "auto" picks cuda if available, else cpu
+# Device
 device = "auto"

@@ -68,18 +68,62 @@ def load_audio_encoder(
 def encode_text(
     model: SentenceTransformer,
     texts: list[str],
+    *,
+    training: bool = False,
 ) -> Tensor:
     """Encode a list of strings into embeddings.
 
     Args:
-        model: A frozen SentenceTransformer.
+        model: A frozen or partially unfrozen SentenceTransformer.
         texts: List of input strings.
+        training: If True, use tokenize + forward directly to allow
+            gradient flow (bypasses SentenceTransformer.encode's
+            internal no_grad). When False, uses inference_mode.
 
     Returns:
         ``(N, embed_dim)`` tensor of text embeddings.
     """
+    if training:
+        features = model.tokenize(texts)
+        features = {k: v.to(model.device) for k, v in features.items()}
+        output = model.forward(features)
+        return output["sentence_embedding"]
     with torch.inference_mode():
         return model.encode(texts, convert_to_tensor=True)
+
+
+def unfreeze_text_top_layers(
+    model: SentenceTransformer,
+    num_layers: int,
+) -> None:
+    """Unfreeze the top N transformer layers of the text encoder.
+
+    SentenceTransformer wraps a HuggingFace model; transformer layers
+    are at ``model[0].auto_model.encoder.layer``. Unfreezes the top
+    ``num_layers`` plus the pooler, setting them to train mode.
+
+    Args:
+        model: The SentenceTransformer (initially fully frozen).
+        num_layers: Number of top encoder layers to unfreeze.
+            If 0, nothing changes.
+    """
+    if num_layers <= 0:
+        return
+    encoder_layers = model[0].auto_model.encoder.layer
+    total = len(encoder_layers)
+    if num_layers > total:
+        raise ValueError(
+            f"Cannot unfreeze {num_layers} layers; "
+            f"model has only {total} encoder layers"
+        )
+    for layer in encoder_layers[-num_layers:]:
+        for param in layer.parameters():
+            param.requires_grad = True
+        layer.train()
+    pooler = model[0].auto_model.pooler
+    if pooler is not None:
+        for param in pooler.parameters():
+            param.requires_grad = True
 
 
 def unfreeze_audio_top_layers(
