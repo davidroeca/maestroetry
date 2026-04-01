@@ -20,7 +20,7 @@ unfreeze_audio_layers = 2
 unfreeze_text_layers = 2
 encoder_learning_rate = 1e-5
 max_grad_norm = 1.0
-hard_negative_weight = 2.0
+hard_negative_weight = 1.0
 
 # LR schedule
 lr_schedule = "cosine"
