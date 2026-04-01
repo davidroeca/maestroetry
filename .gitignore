@@ -21,6 +21,7 @@ demo_audio/
 demo_tracks.csv
 web/static/audio/
 web/static/data/
+web/static/models/
 web/build/
 web/node_modules/
 web/.svelte-kit/

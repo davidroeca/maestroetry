@@ -12,14 +12,17 @@
 #   - gh CLI authenticated
 #   - 15 MP3 files in demo_audio/
 #   - Exported data in web/static/data/ (run export_web_data.py first)
+#   - If trained with unfreeze_text_layers > 0, ONNX model in web/static/models/
 
 set -euo pipefail
 
 TAG="${1:-web-assets-v1}"
 AUDIO_DIR="demo_audio"
 DATA_DIR="web/static/data"
+MODELS_DIR="web/static/models"
 AUDIO_TARBALL="demo-audio.tar.gz"
 DATA_TARBALL="demo-data.tar.gz"
+MODELS_TARBALL="demo-models.tar.gz"
 
 if [ ! -d "$AUDIO_DIR" ]; then
     echo "Error: $AUDIO_DIR/ directory not found." >&2
@@ -54,14 +57,25 @@ tar -czf "$AUDIO_TARBALL" -C "$AUDIO_DIR" .
 echo "Packaging $DATA_TARBALL..."
 tar -czf "$DATA_TARBALL" -C "$DATA_DIR" .
 
+ASSETS=("$AUDIO_TARBALL" "$DATA_TARBALL")
+
+# Package fine-tuned text encoder if exported
+if [ -d "$MODELS_DIR" ] && [ -f "$MODELS_DIR/model.onnx" ]; then
+    echo "Packaging $MODELS_TARBALL (fine-tuned text encoder)..."
+    tar -czf "$MODELS_TARBALL" -C "$MODELS_DIR" .
+    ASSETS+=("$MODELS_TARBALL")
+else
+    echo "No custom text encoder found in $MODELS_DIR/, skipping."
+fi
+
 echo "Uploading to release $TAG..."
 if gh release view "$TAG" > /dev/null 2>&1; then
-    gh release upload "$TAG" "$AUDIO_TARBALL" "$DATA_TARBALL" --clobber
+    gh release upload "$TAG" "${ASSETS[@]}" --clobber
 else
-    gh release create "$TAG" "$AUDIO_TARBALL" "$DATA_TARBALL" \
+    gh release create "$TAG" "${ASSETS[@]}" \
         --title "Web demo assets" \
         --notes "Audio and model data for the web demo. See manual_download.md for sources."
 fi
 
-rm "$AUDIO_TARBALL" "$DATA_TARBALL"
+rm -f "${ASSETS[@]}"
 echo "Done. Release: $TAG"

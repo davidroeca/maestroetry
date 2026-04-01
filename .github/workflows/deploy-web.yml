@@ -49,6 +49,16 @@ jobs:
           tar -xzf demo-audio.tar.gz -C web/static/audio
           tar -xzf demo-data.tar.gz -C web/static/data
 
+          # Fine-tuned text encoder (optional, present when trained
+          # with unfreeze_text_layers > 0)
+          if gh release download "$tag" \
+               --repo "$GITHUB_REPOSITORY" \
+               --pattern "demo-models.tar.gz" \
+               --dir . 2>/dev/null; then
+            mkdir -p web/static/models
+            tar -xzf demo-models.tar.gz -C web/static/models
+          fi
+
       - name: Install and build
         working-directory: web
         run: |
