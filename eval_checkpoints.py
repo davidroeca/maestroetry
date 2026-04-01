@@ -24,6 +24,7 @@ from maestroetry.encoders import (
     load_audio_encoder,
     load_text_encoder,
     unfreeze_audio_top_layers,
+    unfreeze_text_top_layers,
 )
 from maestroetry.evaluate import recall_at_k
 from maestroetry.projection import ContrastiveModel
@@ -42,6 +43,7 @@ def build_model(config: TrainConfig) -> ContrastiveModel:
         device=config.device,
     )
     finetune_audio = config.unfreeze_audio_layers > 0
+    finetune_text = config.unfreeze_text_layers > 0
     model = ContrastiveModel(
         text_encoder=text_encoder,
         audio_encoder=audio_encoder,
@@ -54,10 +56,13 @@ def build_model(config: TrainConfig) -> ContrastiveModel:
         projection_dropout=config.projection_dropout,
         temperature_init=config.temperature_init,
         finetune_audio=finetune_audio,
+        finetune_text=finetune_text,
     )
     model.to(device=config.device)
     if finetune_audio:
         unfreeze_audio_top_layers(audio_encoder, config.unfreeze_audio_layers)
+    if finetune_text:
+        unfreeze_text_top_layers(text_encoder, config.unfreeze_text_layers)
     return model
 
 

@@ -24,7 +24,7 @@ import {
 env.allowLocalModels = false;
 
 type InMessage =
-  | { type: 'init' }
+  | { type: 'init'; modelPath?: string }
   | { type: 'encode'; id: number; text: string };
 
 type OutMessage =
@@ -39,15 +39,18 @@ function post(msg: OutMessage): void {
 
 let extractor: FeatureExtractionPipeline | null = null;
 
-async function init(): Promise<void> {
+const DEFAULT_MODEL = 'Xenova/all-MiniLM-L6-v2';
+
+async function init(modelPath?: string): Promise<void> {
+  const model = modelPath ?? DEFAULT_MODEL;
+  const isCustom = model !== DEFAULT_MODEL;
   // Cast via unknown to work around TS2590 (union type too complex)
   const pipelineFn = pipeline as unknown as (
     task: string,
     model: string,
     options: Record<string, unknown>
   ) => Promise<FeatureExtractionPipeline>;
-  extractor = await pipelineFn('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
-    dtype: 'q8',
+  const options: Record<string, unknown> = {
     progress_callback: (info: unknown) => {
       const p = info as {
         status: string;
@@ -65,7 +68,16 @@ async function init(): Promise<void> {
         });
       }
     },
-  });
+  };
+  // Custom local models are already quantized during export;
+  // stock Xenova model needs dtype: 'q8' to request quantized variant.
+  if (!isCustom) {
+    options.dtype = 'q8';
+  }
+  if (isCustom) {
+    options.local_files_only = true;
+  }
+  extractor = await pipelineFn('feature-extraction', model, options);
   post({ type: 'ready' });
 }
 
@@ -89,7 +101,7 @@ async function encode(id: number, text: string): Promise<void> {
 self.addEventListener('message', (event: MessageEvent<InMessage>) => {
   const msg = event.data;
   if (msg.type === 'init') {
-    init().catch((err) =>
+    init(msg.modelPath).catch((err) =>
       post({ type: 'error', message: `Init failed: ${err}` })
     );
   } else if (msg.type === 'encode') {

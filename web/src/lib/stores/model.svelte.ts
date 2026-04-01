@@ -81,11 +81,15 @@ function handleWorkerMessage(event: MessageEvent<WorkerOut>): void {
   }
 }
 
+interface ModelConfig {
+  textEncoder: 'default' | 'custom';
+}
+
 export function initModel(): void {
   if (_state.status !== 'idle') return;
   _state.status = 'loading';
 
-  // Load projection weights in parallel with worker startup
+  // Load projection weights in parallel with model config
   fetch('/data/text_projection.json')
     .then((r) => r.json() as Promise<ProjectionWeights>)
     .then((w) => {
@@ -96,11 +100,19 @@ export function initModel(): void {
       _state.error = `Failed to load projection weights: ${err}`;
     });
 
-  // Dynamic import keeps the worker URL resolvable by Vite
-  import('$lib/inference/worker.ts?worker').then(({ default: WorkerCtor }) => {
+  // Load model config to determine which text encoder to use,
+  // then start the worker with the appropriate model path.
+  Promise.all([
+    fetch('/data/model_config.json')
+      .then((r) => (r.ok ? (r.json() as Promise<ModelConfig>) : null))
+      .catch(() => null),
+    import('$lib/inference/worker.ts?worker'),
+  ]).then(([modelConfig, { default: WorkerCtor }]) => {
     worker = new WorkerCtor() as Worker;
     worker.addEventListener('message', handleWorkerMessage);
-    worker.postMessage({ type: 'init' });
+    const modelPath =
+      modelConfig?.textEncoder === 'custom' ? '/models/' : undefined;
+    worker.postMessage({ type: 'init', modelPath });
   });
 }
 

@@ -6,6 +6,13 @@ Produces three files in web/static/data/:
   - audio_embeddings.json (15 x 256-d float arrays)
   - tracks.json           (metadata manifest)
 
+When the config has unfreeze_text_layers > 0, the fine-tuned text encoder
+is exported to ONNX (quantized int8) in web/static/models/ so the browser
+can use it instead of the stock Xenova/all-MiniLM-L6-v2. A model_config.json
+manifest is written to web/static/data/ indicating which text encoder to use.
+
+Requires the 'export' dependency group: uv sync --group export
+
 Usage:
     uv run export_web_data.py \\
         --checkpoint checkpoints/best.pt \\
@@ -23,6 +30,8 @@ import argparse
 import csv
 import json
 import logging
+import shutil
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -154,6 +163,100 @@ def load_tracks_csv(csv_path: Path) -> list[dict]:
     return tracks
 
 
+def export_finetuned_text_encoder(
+    model: ContrastiveModel,
+    output_dir: Path,
+) -> Path:
+    """Export fine-tuned text encoder to quantized ONNX for browser use.
+
+    Saves the underlying HuggingFace model + tokenizer in a temp dir,
+    then uses optimum to export to ONNX and quantize to int8. The
+    result is written to output_dir (e.g. web/static/models/).
+
+    Returns the output directory containing ONNX model files.
+    """
+    try:
+        from onnxruntime.quantization import QuantType, quantize_dynamic
+        from optimum.exporters.onnx import main_export
+    except ImportError:
+        raise SystemExit(
+            "ERROR: 'optimum' and 'onnxruntime' are required to "
+            "export fine-tuned text encoders. Install with: "
+            "uv sync --group export"
+        )
+
+    models_dir = output_dir / "models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hf_dir = Path(tmpdir) / "hf_model"
+        onnx_dir = Path(tmpdir) / "onnx_model"
+
+        # Save the underlying HF model and tokenizer
+        logger.info("Saving fine-tuned HF model to temp dir...")
+        st_model = model.text_encoder
+        hf_model = st_model[0].auto_model
+        tokenizer = st_model.tokenizer
+        hf_model.save_pretrained(hf_dir)
+        tokenizer.save_pretrained(hf_dir)
+
+        # Export to ONNX via optimum
+        logger.info("Exporting to ONNX...")
+        main_export(
+            model_name_or_path=str(hf_dir),
+            output=onnx_dir,
+            task="feature-extraction",
+        )
+
+        # Quantize to int8
+        logger.info("Quantizing ONNX model to int8...")
+        onnx_model_path = onnx_dir / "model.onnx"
+        quantized_path = onnx_dir / "model_quantized.onnx"
+        quantize_dynamic(
+            model_input=onnx_model_path,
+            model_output=quantized_path,
+            weight_type=QuantType.QInt8,
+        )
+
+        # Replace unquantized with quantized
+        onnx_model_path.unlink()
+        quantized_path.rename(onnx_model_path)
+
+        # Copy all files to final output
+        if models_dir.exists():
+            shutil.rmtree(models_dir)
+        shutil.copytree(onnx_dir, models_dir)
+
+    size_mb = sum(
+        f.stat().st_size for f in models_dir.rglob("*") if f.is_file()
+    ) / (1024 * 1024)
+    logger.info(
+        "Exported quantized text encoder to %s (%.1f MB)",
+        models_dir,
+        size_mb,
+    )
+    return models_dir
+
+
+def write_model_config(
+    output_dir: Path,
+    *,
+    custom_text_encoder: bool,
+) -> None:
+    """Write model_config.json indicating which text encoder to use.
+
+    The web demo reads this to decide whether to load from
+    /models/ (custom fine-tuned) or Xenova/all-MiniLM-L6-v2 (stock).
+    """
+    config_payload = {
+        "textEncoder": "custom" if custom_text_encoder else "default",
+    }
+    out = output_dir / "model_config.json"
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(config_payload, f, indent=2)
+    logger.info("Saved %s", out)
+
+
 def main() -> None:
     """Entry point."""
     parser = argparse.ArgumentParser(
@@ -187,6 +290,7 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config(args.config)
+    finetuned_text = config.unfreeze_text_layers > 0
     device = config.device
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -232,6 +336,18 @@ def main() -> None:
     with open(out, "w", encoding="utf-8") as f:
         json.dump(tracks, f, indent=2)
     logger.info("Saved %s", out)
+
+    # Export fine-tuned text encoder to ONNX if text layers were unfrozen
+    if finetuned_text:
+        logger.info(
+            "Config has unfreeze_text_layers=%d, "
+            "exporting fine-tuned text encoder to ONNX...",
+            config.unfreeze_text_layers,
+        )
+        export_finetuned_text_encoder(model, output_dir)
+
+    # Write model config so the web demo knows which text encoder to load
+    write_model_config(output_dir, custom_text_encoder=finetuned_text)
 
     logger.info("Export complete. Output in %s/", output_dir)
 
