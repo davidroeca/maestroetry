@@ -45,14 +45,14 @@
   }
 
   const PROMPT_CHIPS = [
-    'slow and searching solo piano, dark and melancholy, introspective',
-    'bright and energetic strings, lively and celebratory, full of vitality',
-    'gentle and dreamy piano, lyrical and floating, quietly expressive',
-    'building orchestral tension, ominous and relentless, growing darker',
-    'delicate and whimsical, magical lightness with a playful character',
-    'aggressive and martial orchestra, powerful and unrelenting',
-    'warm contemplative solo cello, gently flowing and unhurried',
-    'syncopated and upbeat ragtime piano, rhythmic and full of joy',
+    'A smooth and relaxed jazz piece with soft piano, brushed drums, and a warm inviting feel',
+    'An aggressive rock track with distorted electric guitars and pounding, driving drums',
+    'A deeply emotional piano melody with gentle strings, conveying sadness and longing',
+    'A high-energy electronic dance track with pulsing synthesizers and four-on-the-floor beats',
+    'A groovy funk song with tight bass, syncopated guitar riffs, and punchy brass stabs',
+    'A dark and unsettling piece with eerie string drones and slow creeping tension',
+    'A lively Celtic folk tune with fiddle melodies and rhythmic, joyful energy',
+    'A grand orchestral composition with triumphant brass, soaring strings, and powerful timpani',
   ]
 </script>
 

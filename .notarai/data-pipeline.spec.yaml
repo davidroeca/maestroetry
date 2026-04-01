@@ -21,11 +21,14 @@ behaviors:
       zeroed out (SpecAugment masking); the original tensor is never modified
   - name: AudioTextDataset
     given: a CSV manifest with audio_path and text columns, a cache directory,
-      and optional SpecAugment parameters
+      an optional split ("train", "eval", or None), and optional SpecAugment
+      parameters
     then: returns a Dataset that yields (spectrogram_tensor, text_string) tuples
-      and exposes a track_ids attribute for UniqueAudioBatchSampler; when augment
-      is enabled, applies SpecAugment masking to each spectrogram on load
-      (operating on clones, so cached files are unmodified)
+      and exposes a track_ids attribute for UniqueAudioBatchSampler; when split
+      is set, partitions by unique audio track (not by row) so all caption
+      variants for a track stay together; Jamendo tracks are always train-only;
+      when augment is enabled, applies SpecAugment masking to each spectrogram
+      on load (operating on clones, so cached files are unmodified)
   - name: UniqueAudioBatchSampler
     given: a list of per-row track IDs and a batch size
     then: yields batches where each audio track appears at most once;
@@ -38,6 +41,11 @@ constraints:
   - Cached spectrograms stored as .pt tensor files
   - Dataset reads from a CSV manifest with audio_path and text columns
   - Manifest includes a source column (lp_musiccaps or jamendo) to distinguish data origin
+  - "Train/eval split is by unique audio track, not by row, so all caption
+    variants for a track stay in the same partition (seed=42, 15% eval)"
+  - "Eval split is drawn only from lp_musiccaps tracks; Jamendo tracks are
+    always train-only because their programmatic captions are less useful
+    for measuring generalization"
   - "Two-tier data strategy: LP-MusicCaps provides 4 LLM-generated caption variants
     per track (~3K tracks, all variants used by default for ~12K+ pairs),
     Jamendo provides programmatic captions from genre/instrument/mood tags

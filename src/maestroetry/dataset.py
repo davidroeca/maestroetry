@@ -166,6 +166,37 @@ def apply_spec_augment(
     return spec
 
 
+_SPLIT_SEED = 42
+_EVAL_FRACTION = 0.15
+
+
+def _apply_split(
+    rows: list[dict[str, str]],
+    split: str,
+) -> list[dict[str, str]]:
+    """Filter manifest rows into train or eval partition.
+
+    The split is by unique audio track so that all caption variants for
+    a given track stay in the same partition.  Jamendo tracks are always
+    assigned to train because their programmatic captions are not useful
+    for measuring generalization.
+    """
+    lp_tracks = sorted(
+        {r["audio_path"] for r in rows if r.get("source") != "jamendo"}
+    )
+    rng = random.Random(_SPLIT_SEED)
+    rng.shuffle(lp_tracks)
+    n_eval = max(1, int(len(lp_tracks) * _EVAL_FRACTION))
+    eval_set = set(lp_tracks[-n_eval:])
+
+    if split == "eval":
+        return [r for r in rows if r["audio_path"] in eval_set]
+    if split == "train":
+        return [r for r in rows if r["audio_path"] not in eval_set]
+    msg = f"split must be 'train', 'eval', or None, got {split!r}"
+    raise ValueError(msg)
+
+
 class AudioTextDataset(Dataset[tuple[Tensor, str]]):
     """Dataset of (spectrogram, text) pairs.
 
@@ -177,6 +208,9 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
         manifest_path: Path to CSV file with ``audio_path`` and
             ``text`` columns.
         cache_dir: Directory containing cached ``.pt`` spectrograms.
+        split: ``"train"``, ``"eval"``, or ``None``.  When set,
+            partitions by track so all caption variants stay together.
+            Jamendo tracks are always train-only.
         augment: If True, apply SpecAugment masking on each load.
         spec_aug_freq_masks: Number of frequency mask strips.
         spec_aug_freq_width: Max width of each frequency mask.
@@ -188,6 +222,7 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
         self,
         manifest_path: str | Path,
         cache_dir: str | Path,
+        split: str | None = None,
         augment: bool = False,
         spec_aug_freq_masks: int = 2,
         spec_aug_freq_width: int = 27,
@@ -197,6 +232,8 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
         with Path(manifest_path).open(mode="r", encoding="utf8") as manifest_f:
             reader = csv.DictReader(manifest_f)
             rows = list(reader)
+        if split is not None:
+            rows = _apply_split(rows, split)
         self.pairs = [
             (
                 audio_path_to_cache_location(

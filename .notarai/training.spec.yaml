@@ -18,13 +18,14 @@ behaviors:
   - name: train
     given: a TrainConfig with all hyperparameters and an optional checkpoint path to resume from
     then: loads encoders, builds model, trains for num_epochs with TensorBoard logging
-      for loss and Recall@k metrics using separate train (with optional SpecAugment)
-      and eval (no augmentation) dataloaders; metrics are evaluated every eval_interval epochs
-      and always on the final epoch; saves a single best.pt checkpoint (overwritten
-      when R@1 improves); supports resuming from a prior checkpoint; when
-      unfreeze_audio_layers > 0, applies differential learning rates (encoder_learning_rate
-      for unfrozen AST layers, learning_rate for projection heads) and gradient clipping
-      via max_grad_norm
+      for loss and Recall@k metrics using separate train (split="train", with optional
+      SpecAugment) and eval (split="eval", no augmentation) dataloaders so that
+      metrics measure generalization on held-out tracks, not memorization; metrics
+      are evaluated every eval_interval epochs and always on the final epoch; saves
+      a single best.pt checkpoint (overwritten when R@1 improves); supports resuming
+      from a prior checkpoint; when unfreeze_audio_layers > 0, applies differential
+      learning rates (encoder_learning_rate for unfrozen AST layers, learning_rate
+      for projection heads) and gradient clipping via max_grad_norm
   - name: save_checkpoint
     given: a model, optimizer, scheduler, epoch number, and output path
     then: persists only trainable parameter state (projection heads and temperature),

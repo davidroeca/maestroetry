@@ -300,6 +300,7 @@ def train(
     train_dataset = AudioTextDataset(
         manifest_path=manifest_path,
         cache_dir=config.cache_dir,
+        split="train",
         augment=config.spec_augment,
         spec_aug_freq_masks=config.spec_aug_freq_masks,
         spec_aug_freq_width=config.spec_aug_freq_width,
@@ -309,6 +310,7 @@ def train(
     eval_dataset = AudioTextDataset(
         manifest_path=manifest_path,
         cache_dir=config.cache_dir,
+        split="eval",
         augment=False,
     )
     use_cuda = config.device != "cpu"

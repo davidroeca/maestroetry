@@ -4,11 +4,13 @@ tier: full
 
 intent: |
   Fully static SPA (deployable to GitHub Pages, no server) demonstrating
-  text-to-music search and similar track finding over 15 curated public
-  domain recordings. Audio embeddings are pre-computed offline by
-  export_web_data.py. Only the text encoder (Xenova/all-MiniLM-L6-v2,
-  ~23 MB quantized via Transformers.js) and the text projection head
-  (pure TypeScript) run in-browser.
+  text-to-music search and similar track finding over 15 curated
+  CC-licensed tracks (Kevin MacLeod / Incompetech, CC BY 3.0) that are
+  entirely outside the training and eval datasets, so the demo tests
+  true generalization on unseen audio. Audio embeddings are pre-computed
+  offline by export_web_data.py. Only the text encoder
+  (Xenova/all-MiniLM-L6-v2, ~23 MB quantized via Transformers.js) and
+  the text projection head (pure TypeScript) run in-browser.
 
 behaviors:
   - name: text_search
@@ -65,9 +67,16 @@ decisions:
   - date: "2026-03-30"
     choice: Victoriana design theme with Playfair Display and EB Garamond
     rationale: >
-      Classical music corpus (Baroque, Romantic, Classical eras) pairs
-      naturally with a Victorian aesthetic. The ornate typographic style
-      reinforces the historical character of the recordings.
+      Originally chosen to pair with a classical music corpus. The corpus
+      has since changed to genre-diverse CC-licensed tracks (Kevin MacLeod);
+      the theme may warrant revisiting in a future iteration.
+  - date: "2026-03-31"
+    choice: Demo corpus uses CC-licensed tracks entirely outside the training data
+    rationale: >
+      Previous demo used classical recordings that were out-of-distribution
+      for the pop/electronic-heavy training data, and demoing with training
+      tracks would only show memorization. Using external CC tracks tests
+      real generalization on completely unseen audio.
 
 artifacts:
   code:

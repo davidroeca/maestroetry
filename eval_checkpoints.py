@@ -140,6 +140,7 @@ def main() -> None:
     eval_dataset = AudioTextDataset(
         manifest_path=manifest_path,
         cache_dir=config.cache_dir,
+        split="eval",
         augment=False,
     )
     eval_loader = DataLoader(

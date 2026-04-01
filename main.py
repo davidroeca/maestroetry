@@ -35,6 +35,7 @@ def _cmd_ingest(args: argparse.Namespace) -> None:
         max_samples_jamendo=args.max_samples_jamendo,
         lp_only=args.lp_only,
         jamendo_only=args.jamendo_only,
+        lp_all_captions=args.lp_all_captions,
     )
 
 
@@ -118,6 +119,11 @@ def main() -> None:
         "--jamendo-only",
         action="store_true",
         help="Only ingest MTG-Jamendo dataset",
+    )
+    p_ingest.add_argument(
+        "--lp-all-captions",
+        action="store_true",
+        help="Emit all LP-MusicCaps caption variants (4x more pairs)",
     )
     p_ingest.set_defaults(func=_cmd_ingest)
 
