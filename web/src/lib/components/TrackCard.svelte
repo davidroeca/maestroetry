@@ -1,19 +1,19 @@
 <script lang="ts">
-  import type { ScoredTrack } from '$lib/stores/tracks';
+  import type { ScoredTrack } from '$lib/stores/tracks'
 
   interface Props {
-    track: ScoredTrack;
-    showScore?: boolean;
+    track: ScoredTrack
+    showScore?: boolean
   }
-  let { track, showScore = true }: Props = $props();
+  let { track, showScore = true }: Props = $props()
 
-  let audioSrc = $derived(`/audio/${track.filename}`);
-  let audioEl: HTMLAudioElement | undefined = $state();
+  let audioSrc = $derived(`/audio/${track.filename}`)
+  let audioEl: HTMLAudioElement | undefined = $state()
 
   function handlePlay() {
     document.querySelectorAll('audio').forEach((el) => {
-      if (el !== audioEl) el.pause();
-    });
+      if (el !== audioEl) el.pause()
+    })
   }
 </script>
 
@@ -34,7 +34,14 @@
     {/if}
   </div>
   <p class="track-description">{track.description}</p>
-  <audio bind:this={audioEl} controls src={audioSrc} class="audio-player" preload="none" onplay={handlePlay}>
+  <audio
+    bind:this={audioEl}
+    controls
+    src={audioSrc}
+    class="audio-player"
+    preload="none"
+    onplay={handlePlay}
+  >
     Your browser does not support audio playback.
   </audio>
 </article>

@@ -8,7 +8,10 @@
 <svelte:head>
   <link rel="icon" href={favicon} />
   <title>Maestroetry: Text-to-Music Search</title>
-  <meta name="description" content="Search classical music by description using a contrastive text-audio model." />
+  <meta
+    name="description"
+    content="Search classical music by description using a contrastive text-audio model."
+  />
 </svelte:head>
 
 <div class="app-shell">

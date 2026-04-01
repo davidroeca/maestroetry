@@ -1,31 +1,31 @@
 <script lang="ts">
-  import type { TracksData, ScoredTrack } from '$lib/stores/tracks';
-  import { findSimilar } from '$lib/stores/tracks';
-  import TrackCard from './TrackCard.svelte';
+  import type { TracksData, ScoredTrack } from '$lib/stores/tracks'
+  import { findSimilar } from '$lib/stores/tracks'
+  import TrackCard from './TrackCard.svelte'
 
   interface Props {
-    tracksData: TracksData;
+    tracksData: TracksData
   }
-  let { tracksData }: Props = $props();
+  let { tracksData }: Props = $props()
 
-  let selectedId: number | null = $state(null);
-  let results: ScoredTrack[] = $state([]);
+  let selectedId: number | null = $state(null)
+  let results: ScoredTrack[] = $state([])
 
   function selectTrack(id: number) {
     if (selectedId === id) {
-      selectedId = null;
-      results = [];
+      selectedId = null
+      results = []
     } else {
-      selectedId = id;
-      results = findSimilar(id, tracksData);
+      selectedId = id
+      results = findSimilar(id, tracksData)
     }
   }
 </script>
 
 <section class="similar-finder">
   <p class="section-hint">
-    Select a track to find the most similar pieces by embedding distance.
-    Works without loading the text model.
+    Select a track to find the most similar pieces by embedding distance. Works
+    without loading the text model.
   </p>
 
   <div class="track-selector-grid">
@@ -81,7 +81,9 @@
     padding: 0.6rem 0.75rem;
     text-align: left;
     cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
   }
 
   .selector-btn:hover {

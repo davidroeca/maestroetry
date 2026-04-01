@@ -1,16 +1,16 @@
 <script lang="ts">
   interface Props {
-    disabled?: boolean;
-    onSearch?: (query: string) => void;
+    disabled?: boolean
+    onSearch?: (query: string) => void
   }
-  let { disabled = false, onSearch }: Props = $props();
+  let { disabled = false, onSearch }: Props = $props()
 
-  let query = $state('');
+  let query = $state('')
 
   function handleSubmit(e: SubmitEvent) {
-    e.preventDefault();
-    const trimmed = query.trim();
-    if (trimmed) onSearch?.(trimmed);
+    e.preventDefault()
+    const trimmed = query.trim()
+    if (trimmed) onSearch?.(trimmed)
   }
 </script>
 
@@ -23,9 +23,7 @@
     aria-label="Music search query"
     {disabled}
   />
-  <button type="submit" class="search-btn" {disabled}>
-    Search
-  </button>
+  <button type="submit" class="search-btn" {disabled}> Search </button>
 </form>
 
 <style>
@@ -72,7 +70,9 @@
     border: none;
     border-radius: 2px;
     cursor: pointer;
-    transition: background 0.2s, opacity 0.2s;
+    transition:
+      background 0.2s,
+      opacity 0.2s;
     white-space: nowrap;
   }
 

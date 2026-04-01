@@ -1,11 +1,11 @@
 <script lang="ts">
   interface Props {
-    progress?: number;
-    file?: string;
+    progress?: number
+    file?: string
   }
-  let { progress = 0, file = '' }: Props = $props();
+  let { progress = 0, file = '' }: Props = $props()
 
-  let pct = $derived(Math.round(progress * 100));
+  let pct = $derived(Math.round(progress * 100))
 </script>
 
 <div class="overlay" role="status" aria-live="polite">
@@ -16,7 +16,13 @@
     {#if file}
       <p class="overlay-file">{file}</p>
     {/if}
-    <div class="progress-track" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+    <div
+      class="progress-track"
+      role="progressbar"
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
       <div class="progress-fill" style="width: {pct}%"></div>
     </div>
     <p class="progress-pct">{pct}%</p>

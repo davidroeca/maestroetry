@@ -10,48 +10,48 @@
  */
 
 export interface LayerWeights {
-  weight: number[][];
-  bias: number[];
+  weight: number[][]
+  bias: number[]
 }
 
 export interface ProjectionWeights {
-  layers: LayerWeights[];
+  layers: LayerWeights[]
 }
 
 function linearForward(
   x: Float32Array,
   weight: number[][],
-  bias: number[]
+  bias: number[],
 ): Float32Array {
-  const outDim = weight.length;
-  const out = new Float32Array(outDim);
+  const outDim = weight.length
+  const out = new Float32Array(outDim)
   for (let i = 0; i < outDim; i++) {
-    let sum = bias[i];
-    const row = weight[i];
+    let sum = bias[i]
+    const row = weight[i]
     for (let j = 0; j < x.length; j++) {
-      sum += x[j] * row[j];
+      sum += x[j] * row[j]
     }
-    out[i] = sum;
+    out[i] = sum
   }
-  return out;
+  return out
 }
 
 function relu(x: Float32Array): Float32Array {
-  const out = new Float32Array(x.length);
+  const out = new Float32Array(x.length)
   for (let i = 0; i < x.length; i++) {
-    out[i] = x[i] > 0 ? x[i] : 0;
+    out[i] = x[i] > 0 ? x[i] : 0
   }
-  return out;
+  return out
 }
 
 function l2normalize(x: Float32Array): Float32Array {
-  let norm = 0;
-  for (let i = 0; i < x.length; i++) norm += x[i] * x[i];
-  norm = Math.sqrt(norm);
-  if (norm < 1e-12) return x.slice();
-  const out = new Float32Array(x.length);
-  for (let i = 0; i < x.length; i++) out[i] = x[i] / norm;
-  return out;
+  let norm = 0
+  for (let i = 0; i < x.length; i++) norm += x[i] * x[i]
+  norm = Math.sqrt(norm)
+  if (norm < 1e-12) return x.slice()
+  const out = new Float32Array(x.length)
+  for (let i = 0; i < x.length; i++) out[i] = x[i] / norm
+  return out
 }
 
 /**
@@ -63,16 +63,16 @@ function l2normalize(x: Float32Array): Float32Array {
  */
 export function projectText(
   x: Float32Array,
-  weights: ProjectionWeights
+  weights: ProjectionWeights,
 ): Float32Array {
-  let h: Float32Array = x;
-  const { layers } = weights;
+  let h: Float32Array = x
+  const { layers } = weights
   for (let i = 0; i < layers.length; i++) {
-    const { weight, bias } = layers[i];
-    h = linearForward(h, weight, bias);
+    const { weight, bias } = layers[i]
+    h = linearForward(h, weight, bias)
     if (i < layers.length - 1) {
-      h = relu(h);
+      h = relu(h)
     }
   }
-  return l2normalize(h);
+  return l2normalize(h)
 }

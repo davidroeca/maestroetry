@@ -6,14 +6,14 @@
  */
 
 export function dotProduct(a: Float32Array, b: Float32Array): number {
-  let sum = 0;
-  for (let i = 0; i < a.length; i++) sum += a[i] * b[i];
-  return sum;
+  let sum = 0
+  for (let i = 0; i < a.length; i++) sum += a[i] * b[i]
+  return sum
 }
 
 export interface RankedResult {
-  index: number;
-  score: number;
+  index: number
+  score: number
 }
 
 /**
@@ -25,9 +25,9 @@ export interface RankedResult {
  */
 export function rankBySimilarity(
   query: Float32Array,
-  embeddings: Float32Array[]
+  embeddings: Float32Array[],
 ): RankedResult[] {
   return embeddings
     .map((emb, index) => ({ index, score: dotProduct(query, emb) }))
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => b.score - a.score)
 }

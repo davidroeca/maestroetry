@@ -1,8 +1,8 @@
 <script lang="ts">
   interface Props {
-    variant?: 'divider' | 'header' | 'footer';
+    variant?: 'divider' | 'header' | 'footer'
   }
-  let { variant = 'divider' }: Props = $props();
+  let { variant = 'divider' }: Props = $props()
 </script>
 
 {#if variant === 'divider'}
@@ -36,7 +36,12 @@
   .ornament-rule {
     flex: 1;
     height: 1px;
-    background: linear-gradient(to right, transparent, var(--gold), transparent);
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--gold),
+      transparent
+    );
   }
 
   .ornament-glyph {

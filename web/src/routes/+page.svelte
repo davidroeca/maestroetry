@@ -65,7 +65,7 @@
     <button
       class="tab-btn"
       class:active={activeTab === 'search'}
-      onclick={() => activeTab = 'search'}
+      onclick={() => (activeTab = 'search')}
     >
       Text Search
     </button>
@@ -73,7 +73,7 @@
     <button
       class="tab-btn"
       class:active={activeTab === 'similar'}
-      onclick={() => activeTab = 'similar'}
+      onclick={() => (activeTab = 'similar')}
     >
       Similar Finder
     </button>
@@ -85,10 +85,7 @@
         Describe the mood, instrumentation, or character of the music you seek.
       </p>
 
-      <SearchBar
-        disabled={ms.status !== 'ready'}
-        onSearch={handleSearch}
-      />
+      <SearchBar disabled={ms.status !== 'ready'} onSearch={handleSearch} />
 
       {#if !hasSearched}
         <div class="prompt-chips">
@@ -96,14 +93,17 @@
             <button
               class="chip"
               disabled={ms.status !== 'ready'}
-              onclick={() => handleSearch(chip)}
-            >{chip}</button>
+              onclick={() => handleSearch(chip)}>{chip}</button
+            >
           {/each}
         </div>
       {/if}
 
       {#if ms.status === 'loading'}
-        <p class="status-hint">Loading text model&hellip; similar track finder available in the other tab.</p>
+        <p class="status-hint">
+          Loading text model&hellip; similar track finder available in the other
+          tab.
+        </p>
       {:else if ms.status === 'error'}
         <p class="status-error">Failed to load text model: {ms.error}</p>
       {/if}
@@ -163,7 +163,10 @@
     margin-bottom: -1px;
     cursor: pointer;
     opacity: 0.65;
-    transition: color 0.2s, opacity 0.2s, border-color 0.2s;
+    transition:
+      color 0.2s,
+      opacity 0.2s,
+      border-color 0.2s;
   }
 
   .tab-btn:hover {
@@ -243,7 +246,9 @@
     opacity: 0.55;
     text-decoration: underline;
     text-underline-offset: 3px;
-    transition: opacity 0.15s, color 0.15s;
+    transition:
+      opacity 0.15s,
+      color 0.15s;
   }
 
   .clear-btn:hover {
@@ -270,7 +275,11 @@
     padding: 0.25rem 0.65rem;
     cursor: pointer;
     opacity: 0.75;
-    transition: background 0.15s, border-color 0.15s, opacity 0.15s, color 0.15s;
+    transition:
+      background 0.15s,
+      border-color 0.15s,
+      opacity 0.15s,
+      color 0.15s;
   }
 
   .chip:hover:not(:disabled) {
