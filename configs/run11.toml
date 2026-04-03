@@ -1,0 +1,57 @@
+[train]
+# Run 11: Stronger text encoder (BAAI/bge-base-en-v1.5, 768-dim, 12 layers)
+#
+# Isolates the effect of text encoder quality. Everything else matches
+# the default config (frozen text, no hard negatives). bge-base scores
+# higher than mpnet on retrieval benchmarks, which is our task.
+
+# Model architecture
+embed_dim = 256
+projection_hidden_dim = 512
+projection_depth = 3
+projection_dropout = 0.1
+temperature_init = 0.07
+
+# Encoder names
+text_encoder_name = "BAAI/bge-base-en-v1.5"
+audio_encoder_name = "MIT/ast-finetuned-audioset-10-10-0.4593"
+
+# Encoder fine-tuning
+unfreeze_audio_layers = 2
+unfreeze_text_layers = 0
+encoder_learning_rate = 1e-5
+max_grad_norm = 1.0
+hard_negative_weight = 1.0
+
+# LR schedule
+lr_schedule = "cosine"
+
+# Training
+batch_size = 100
+learning_rate = 3e-4
+weight_decay = 0.01
+warmup_steps = 200
+num_epochs = 300
+eval_interval = 5
+grad_accumulation_steps = 4
+
+# SpecAugment
+spec_augment = true
+spec_aug_freq_masks = 2
+spec_aug_freq_width = 27
+spec_aug_time_masks = 2
+spec_aug_time_width = 100
+
+# Audio preprocessing
+n_mels = 128
+sample_rate = 16000
+max_audio_seconds = 10.0
+
+# Paths
+data_dir = "data"
+cache_dir = "data/cache"
+log_dir = "runs/run11"
+checkpoint_dir = "checkpoints/run11"
+
+# Device
+device = "auto"
