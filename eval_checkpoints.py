@@ -16,9 +16,12 @@ import logging
 from pathlib import Path
 
 import torch
+from torch.utils.data import DataLoader
+
 from maestroetry.config import TrainConfig, load_config
-from maestroetry.dataset import AudioTextDataset
+from maestroetry.dataset import AudioTextDataset, cache_waveforms
 from maestroetry.encoders import (
+    is_mert,
     load_audio_encoder,
     load_text_encoder,
     unfreeze_audio_top_layers,
@@ -26,7 +29,6 @@ from maestroetry.encoders import (
 )
 from maestroetry.evaluate import recall_at_k
 from maestroetry.projection import ContrastiveModel
-from torch.utils.data import DataLoader
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -153,11 +155,22 @@ def main() -> None:
     # Build model and eval dataset once
     model = build_model(config)
     manifest_path = Path(config.data_dir) / "manifest.csv"
+    use_mert = is_mert(config.audio_encoder_name)
+    waveform_sr: int | None = None
+    if use_mert:
+        waveform_sr = config.sample_rate
+        cache_waveforms(
+            audio_dir=Path(config.data_dir) / "audio",
+            cache_dir=config.cache_dir,
+            sr=config.sample_rate,
+            max_seconds=config.max_audio_seconds,
+        )
     eval_dataset = AudioTextDataset(
         manifest_path=manifest_path,
         cache_dir=config.cache_dir,
         split=args.split,
         augment=False,
+        waveform_sr=waveform_sr,
     )
     eval_loader = DataLoader(
         eval_dataset,

@@ -1,0 +1,54 @@
+[train]
+# Run 15: MERT-v1-330M audio encoder + bge-base text encoder
+#
+# Replaces AST (trained on AudioSet/environmental sounds) with MERT
+# (self-supervised on 160K hours of music). Keeps the best settings
+# from run 14: unfrozen text, regularized projection, early stopping.
+
+# Model architecture
+embed_dim = 256
+projection_hidden_dim = 512
+projection_depth = 2
+projection_dropout = 0.3
+temperature_init = 0.07
+
+# Encoder names
+text_encoder_name = "BAAI/bge-base-en-v1.5"
+audio_encoder_name = "m-a-p/MERT-v1-330M"
+
+# Encoder fine-tuning
+unfreeze_audio_layers = 2
+unfreeze_text_layers = 2
+encoder_learning_rate = 5e-6
+max_grad_norm = 1.0
+hard_negative_weight = 1.0
+
+# LR schedule
+lr_schedule = "cosine"
+
+# Training
+batch_size = 64
+learning_rate = 3e-4
+weight_decay = 0.01
+warmup_steps = 200
+num_epochs = 300
+eval_interval = 5
+early_stopping_patience = 10
+grad_accumulation_steps = 2
+
+# SpecAugment (not used for MERT waveform input)
+spec_augment = false
+
+# Audio preprocessing
+n_mels = 128
+sample_rate = 24000
+max_audio_seconds = 10.0
+
+# Paths
+data_dir = "data"
+cache_dir = "data/cache"
+log_dir = "runs/run15"
+checkpoint_dir = "checkpoints/run15"
+
+# Device
+device = "auto"

@@ -13,8 +13,14 @@ import torch.optim.lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from maestroetry.dataset import AudioTextDataset, UniqueAudioBatchSampler
+from maestroetry.dataset import (
+    AudioTextDataset,
+    UniqueAudioBatchSampler,
+    cache_waveforms,
+)
 from maestroetry.encoders import (
+    _get_audio_encoder_layers,
+    is_mert,
     load_audio_encoder,
     load_text_encoder,
     unfreeze_audio_top_layers,
@@ -294,18 +300,17 @@ def train(
     model.text_projection_head = torch.compile(model.text_projection_head)
     model.audio_projection_head = torch.compile(model.audio_projection_head)
 
-    # Selectively unfreeze top AST layers if configured.
+    # Selectively unfreeze top audio encoder layers if configured.
     frozen_audio_layers: list[torch.nn.Module] | None = None
     if finetune_audio:
         unfreeze_audio_top_layers(audio_encoder, config.unfreeze_audio_layers)
-        total_layers = len(audio_encoder.encoder.layer)
+        all_audio_layers = _get_audio_encoder_layers(audio_encoder)
+        total_layers = len(all_audio_layers)
         frozen_audio_layers = list(
-            audio_encoder.encoder.layer[
-                : total_layers - config.unfreeze_audio_layers
-            ]
+            all_audio_layers[: total_layers - config.unfreeze_audio_layers]
         )
         logger.info(
-            "Unfreezing top %d AST layers (of %d total)",
+            "Unfreezing top %d audio encoder layers (of %d total)",
             config.unfreeze_audio_layers,
             total_layers,
         )
@@ -325,11 +330,23 @@ def train(
         )
 
     manifest_path = Path(config.data_dir) / "manifest.csv"
+    use_mert = is_mert(config.audio_encoder_name)
+    waveform_sr: int | None = None
+    if use_mert:
+        waveform_sr = config.sample_rate
+        audio_dir = Path(config.data_dir) / "audio"
+        cache_waveforms(
+            audio_dir=audio_dir,
+            cache_dir=config.cache_dir,
+            sr=config.sample_rate,
+            max_seconds=config.max_audio_seconds,
+        )
     train_dataset = AudioTextDataset(
         manifest_path=manifest_path,
         cache_dir=config.cache_dir,
         split="train",
-        augment=config.spec_augment,
+        augment=config.spec_augment and not use_mert,
+        waveform_sr=waveform_sr,
         spec_aug_freq_masks=config.spec_aug_freq_masks,
         spec_aug_freq_width=config.spec_aug_freq_width,
         spec_aug_time_masks=config.spec_aug_time_masks,
@@ -340,6 +357,7 @@ def train(
         cache_dir=config.cache_dir,
         split="eval",
         augment=False,
+        waveform_sr=waveform_sr,
     )
     use_cuda = config.device != "cpu"
     dataloader = DataLoader(

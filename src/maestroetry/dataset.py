@@ -76,12 +76,41 @@ def audio_to_mel_spectrogram(
     return torch.from_numpy(log_mel)
 
 
+def audio_to_waveform(
+    path: str | Path,
+    sr: int = 24000,
+    max_seconds: float = 10.0,
+) -> Tensor:
+    """Load an audio file as a raw waveform tensor.
+
+    Resamples to ``sr``, truncates or zero-pads to exactly
+    ``max_seconds`` so all waveforms in a batch have equal length.
+
+    Args:
+        path: Path to an audio file.
+        sr: Target sample rate (24000 for MERT).
+        max_seconds: Fixed output duration in seconds.
+
+    Returns:
+        ``(max_samples,)`` 1-D waveform tensor.
+    """
+    audio, _ = librosa.load(path, sr=sr, mono=True)
+    max_samples = int(max_seconds * sr)
+    if len(audio) < max_samples:
+        audio = np.pad(audio, (0, max_samples - len(audio)))
+    else:
+        audio = audio[:max_samples]
+    return torch.from_numpy(audio)
+
+
 def audio_path_to_cache_location(
-    audio_path: str | Path, cache_dir: str | Path
+    audio_path: str | Path,
+    cache_dir: str | Path,
+    suffix: str = "",
 ) -> Path:
     cache_dir = Path(cache_dir)
     safe_name = str(Path(audio_path)).replace("/", "_").replace("\\", "_")
-    return cache_dir / f"{safe_name}.pt"
+    return cache_dir / f"{safe_name}{suffix}.pt"
 
 
 def cache_spectrograms(
@@ -128,6 +157,48 @@ def cache_spectrograms(
         )
         if i % 500 == 0:
             logger.info("[%d] spectrograms cached...", i)
+
+
+def cache_waveforms(
+    audio_dir: str | Path,
+    cache_dir: str | Path,
+    sr: int = 24000,
+    max_seconds: float = 10.0,
+) -> None:
+    """Pre-compute and cache resampled waveforms for all audio files.
+
+    Args:
+        audio_dir: Directory containing audio files.
+        cache_dir: Directory to write cached ``.pt`` tensors.
+        sr: Target sample rate (24000 for MERT).
+        max_seconds: Fixed output duration in seconds.
+    """
+    cache_dir_path = Path(cache_dir)
+    cache_dir_path.mkdir(parents=True, exist_ok=True)
+    iter_audio_paths = (
+        f
+        for f in Path(audio_dir).rglob("*")
+        if f.is_file() and f.suffix in AUDIO_EXTENSIONS
+    )
+    suffix = _waveform_cache_suffix(sr)
+    logger.info("Caching waveforms (%d Hz) from %s ...", sr, audio_dir)
+    for i, audio_path in enumerate(iter_audio_paths, 1):
+        dest = audio_path_to_cache_location(
+            audio_path=audio_path,
+            cache_dir=cache_dir,
+            suffix=suffix,
+        )
+        if dest.exists():
+            continue
+        waveform = audio_to_waveform(audio_path, sr=sr, max_seconds=max_seconds)
+        torch.save(waveform, dest)
+        if i % 500 == 0:
+            logger.info("[%d] waveforms cached...", i)
+
+
+def _waveform_cache_suffix(sr: int) -> str:
+    """Return a cache filename suffix that distinguishes waveform sample rates."""
+    return f"_wav{sr}"
 
 
 def apply_spec_augment(
@@ -198,20 +269,24 @@ def _apply_split(
 
 
 class AudioTextDataset(Dataset[tuple[Tensor, str]]):
-    """Dataset of (spectrogram, text) pairs.
+    """Dataset of (audio_tensor, text) pairs.
 
     Reads a CSV manifest with at least ``audio_path`` and ``text``
-    columns. Spectrograms are loaded from the cache directory as
-    ``.pt`` files.
+    columns. Audio tensors are loaded from the cache directory as
+    ``.pt`` files, either as mel spectrograms (for AST) or raw
+    waveforms (for MERT).
 
     Args:
         manifest_path: Path to CSV file with ``audio_path`` and
             ``text`` columns.
-        cache_dir: Directory containing cached ``.pt`` spectrograms.
+        cache_dir: Directory containing cached ``.pt`` tensors.
         split: ``"train"``, ``"eval"``, or ``None``.  When set,
             partitions by track so all caption variants stay together.
             Jamendo tracks are always train-only.
-        augment: If True, apply SpecAugment masking on each load.
+        augment: If True, apply SpecAugment masking on each load
+            (spectrograms only; ignored for waveforms).
+        waveform_sr: If set, load cached waveforms at this sample
+            rate instead of spectrograms.
         spec_aug_freq_masks: Number of frequency mask strips.
         spec_aug_freq_width: Max width of each frequency mask.
         spec_aug_time_masks: Number of time mask strips.
@@ -224,6 +299,7 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
         cache_dir: str | Path,
         split: str | None = None,
         augment: bool = False,
+        waveform_sr: int | None = None,
         spec_aug_freq_masks: int = 2,
         spec_aug_freq_width: int = 27,
         spec_aug_time_masks: int = 2,
@@ -234,10 +310,15 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
             rows = list(reader)
         if split is not None:
             rows = _apply_split(rows, split)
+        cache_suffix = (
+            _waveform_cache_suffix(waveform_sr) if waveform_sr else ""
+        )
         self.pairs = [
             (
                 audio_path_to_cache_location(
-                    audio_path=row["audio_path"], cache_dir=cache_dir
+                    audio_path=row["audio_path"],
+                    cache_dir=cache_dir,
+                    suffix=cache_suffix,
                 ),
                 row["text"],
             )
@@ -246,6 +327,7 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
         # Track IDs for UniqueAudioBatchSampler. Uses audio_path as
         # the unique identifier for each underlying audio file.
         self.track_ids: list[str] = [row["audio_path"] for row in rows]
+        self.use_waveforms = waveform_sr is not None
         self.augment = augment
         self.spec_aug_freq_masks = spec_aug_freq_masks
         self.spec_aug_freq_width = spec_aug_freq_width
@@ -256,18 +338,18 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
         return len(self.pairs)
 
     def __getitem__(self, idx) -> tuple[Tensor, str]:  # type: ignore[override]
-        """Return (spectrogram, text) for the given index."""
+        """Return (audio_tensor, text) for the given index."""
         cache_location, text = self.pairs[idx]
-        spectrogram = torch.load(cache_location, weights_only=True)
-        if self.augment:
-            spectrogram = apply_spec_augment(
-                spectrogram,
+        audio = torch.load(cache_location, weights_only=True)
+        if not self.use_waveforms and self.augment:
+            audio = apply_spec_augment(
+                audio,
                 freq_masks=self.spec_aug_freq_masks,
                 freq_width=self.spec_aug_freq_width,
                 time_masks=self.spec_aug_time_masks,
                 time_width=self.spec_aug_time_width,
             )
-        return spectrogram, text
+        return audio, text
 
 
 class UniqueAudioBatchSampler(Sampler[list[int]]):
