@@ -413,6 +413,8 @@ def train(
         config.device,
     )
     best_recall: float = -1.0
+    evals_without_improvement: int = 0
+    patience = config.early_stopping_patience
     for epoch in range(start_epoch, config.num_epochs):
         logger.info("Epoch %d/%d", epoch + 1, config.num_epochs)
         loss = train_one_epoch(
@@ -439,12 +441,21 @@ def train(
             recall = metrics.get("t2a_R@1", 0.0)
             if recall > best_recall:
                 best_recall = recall
+                evals_without_improvement = 0
                 save_checkpoint(best_ckpt, model, optimizer, scheduler, epoch)
                 logger.info(
                     "  best checkpoint updated (R@1=%.4f): %s",
                     best_recall,
                     best_ckpt,
                 )
+            else:
+                evals_without_improvement += 1
+                if patience > 0 and evals_without_improvement >= patience:
+                    logger.info(
+                        "  early stopping: no improvement for %d eval cycles",
+                        patience,
+                    )
+                    break
     logger.info(
         "Training complete. Best R@1=%.4f, checkpoint: %s",
         best_recall,

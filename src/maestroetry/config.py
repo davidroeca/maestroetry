@@ -46,6 +46,7 @@ class TrainConfig:
     warmup_steps: int = 200
     num_epochs: int = 300
     eval_interval: int = 5
+    early_stopping_patience: int = 0
     grad_accumulation_steps: int = 4
 
     # SpecAugment
