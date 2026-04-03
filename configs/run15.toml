@@ -1,9 +1,11 @@
 [train]
-# Run 15: MERT-v1-330M audio encoder + bge-base text encoder
+# Run 15: MERT-v1-95M audio encoder + bge-base text encoder
 #
 # Replaces AST (trained on AudioSet/environmental sounds) with MERT
-# (self-supervised on 160K hours of music). Keeps the best settings
-# from run 14: unfrozen text, regularized projection, early stopping.
+# (self-supervised on 160K hours of music, 768-dim, 12 layers).
+# 330M variant OOMed on 48GB GPU; 95M fits comfortably.
+# Keeps the best settings from run 14: unfrozen text, regularized
+# projection, early stopping.
 
 # Model architecture
 embed_dim = 256
@@ -14,7 +16,7 @@ temperature_init = 0.07
 
 # Encoder names
 text_encoder_name = "BAAI/bge-base-en-v1.5"
-audio_encoder_name = "m-a-p/MERT-v1-330M"
+audio_encoder_name = "m-a-p/MERT-v1-95M"
 
 # Encoder fine-tuning
 unfreeze_audio_layers = 2
