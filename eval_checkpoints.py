@@ -16,8 +16,6 @@ import logging
 from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader
-
 from maestroetry.config import TrainConfig, load_config
 from maestroetry.dataset import AudioTextDataset
 from maestroetry.encoders import (
@@ -28,6 +26,7 @@ from maestroetry.encoders import (
 )
 from maestroetry.evaluate import recall_at_k
 from maestroetry.projection import ContrastiveModel
+from torch.utils.data import DataLoader
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -66,7 +65,9 @@ def build_model(config: TrainConfig) -> ContrastiveModel:
     return model
 
 
-def _strip_compile_prefix(state_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+def _strip_compile_prefix(
+    state_dict: dict[str, torch.Tensor],
+) -> dict[str, torch.Tensor]:
     """Remove '_orig_mod.' prefix that torch.compile adds to key names."""
     cleaned: dict[str, torch.Tensor] = {}
     for k, v in state_dict.items():
@@ -91,7 +92,9 @@ def eval_checkpoint(
     with torch.inference_mode():
         for spectrograms, texts in eval_loader:
             spectrograms = spectrograms.to(config.device, non_blocking=True)
-            with torch.amp.autocast(device_type=config.device, dtype=torch.bfloat16):
+            with torch.amp.autocast(
+                device_type=config.device, dtype=torch.bfloat16
+            ):
                 text_embeds, audio_embeds, _ = model(texts, spectrograms)
             all_text.append(text_embeds.cpu())
             all_audio.append(audio_embeds.cpu())
@@ -99,7 +102,9 @@ def eval_checkpoint(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate R@1 for all run checkpoints")
+    parser = argparse.ArgumentParser(
+        description="Evaluate R@1 for all run checkpoints"
+    )
     parser.add_argument(
         "--checkpoint-root",
         default="checkpoints",
@@ -114,6 +119,12 @@ def main() -> None:
         "--data-dir",
         default="data",
         help="Data directory with manifest.csv (default: data)",
+    )
+    parser.add_argument(
+        "--split",
+        default="eval",
+        choices=["train", "eval"],
+        help="Which data split to evaluate on (default: eval)",
     )
     parser.add_argument(
         "--runs",
@@ -145,7 +156,7 @@ def main() -> None:
     eval_dataset = AudioTextDataset(
         manifest_path=manifest_path,
         cache_dir=config.cache_dir,
-        split="eval",
+        split=args.split,
         augment=False,
     )
     eval_loader = DataLoader(
@@ -156,7 +167,10 @@ def main() -> None:
         pin_memory=config.device != "cpu",
     )
 
-    print(f"{'Checkpoint':<40} {'Epoch':>6}  {'t2a_R@1':>8}  {'a2t_R@1':>8}  {'t2a_R@5':>8}  {'t2a_R@10':>9}")
+    print(f"Split: {args.split}")
+    print(
+        f"{'Checkpoint':<40} {'Epoch':>6}  {'t2a_R@1':>8}  {'a2t_R@1':>8}  {'t2a_R@5':>8}  {'t2a_R@10':>9}"
+    )
     print("-" * 115)
 
     for ckpt_path in ckpt_paths:
@@ -165,7 +179,9 @@ def main() -> None:
             continue
 
         # Read epoch from checkpoint
-        ckpt_data = torch.load(ckpt_path, weights_only=False, map_location="cpu")
+        ckpt_data = torch.load(
+            ckpt_path, weights_only=False, map_location="cpu"
+        )
         epoch = ckpt_data.get("epoch", -1)
 
         metrics = eval_checkpoint(ckpt_path, config, model, eval_loader)
