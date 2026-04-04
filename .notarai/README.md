@@ -1,4 +1,4 @@
-# NotarAI -- 0.5.1
+# NotarAI -- 0.6.0
 
 This directory contains intent specs for this project. Specs are the canonical
 source of truth -- when code and spec disagree, the spec wins.
