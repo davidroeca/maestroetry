@@ -22,7 +22,7 @@ def load_clap_model(
     """
     model = ClapModel.from_pretrained(model_name)
     processor = ClapProcessor.from_pretrained(model_name)
-    model.to(device)  # type: ignore[invalid-argument-type]
+    model.to(device)  # ty: ignore[invalid-argument-type]
     for parameter in model.parameters():
         parameter.requires_grad = False
     model.eval()
@@ -39,8 +39,8 @@ def _audio_encoder_layers(model: ClapModel) -> list[torch.nn.Module]:
     """
     flat: list[torch.nn.Module] = []
     for stage in model.audio_model.audio_encoder.layers:
-        for block in stage.blocks:
-            flat.append(block)
+        for block in stage.blocks:  # ty: ignore[not-iterable]
+            flat.append(block)  # ty: ignore[invalid-argument-type]
     return flat
 
 
@@ -80,7 +80,7 @@ def unfreeze_clap_text_top_layers(model: ClapModel, n: int) -> None:
         raise ValueError(
             f"Cannot unfreeze {n} text layers; CLAP text encoder has {total}"
         )
-    for layer in layers[-n:]:
+    for layer in layers[-n:]:  # ty: ignore[not-iterable]
         for param in layer.parameters():
             param.requires_grad = True
         layer.train()
@@ -109,12 +109,15 @@ def encode_text(
     """
     inputs = processor(text=texts, return_tensors="pt", padding=True)
     device = next(model.parameters()).device
-    inputs = {k: v.to(device) for k, v in inputs.items()}
+    text_keys = {"input_ids", "attention_mask", "position_ids"}
+    text_inputs = {
+        k: v.to(device) for k, v in inputs.items() if k in text_keys
+    }
     if training:
-        embeds = model.get_text_features(**inputs)
+        embeds = model.get_text_features(**text_inputs)
     else:
         with torch.inference_mode():
-            embeds = model.get_text_features(**inputs)
+            embeds = model.get_text_features(**text_inputs)
     return torch.nn.functional.normalize(embeds, dim=-1)
 
 
@@ -145,10 +148,13 @@ def encode_audio(
         sampling_rate=48000,
         return_tensors="pt",
     )
-    inputs = {k: v.to(device) for k, v in inputs.items()}
+    audio_keys = {"input_features", "is_longer", "attention_mask"}
+    audio_inputs = {
+        k: v.to(device) for k, v in inputs.items() if k in audio_keys
+    }
     if training:
-        embeds = model.get_audio_features(**inputs)
+        embeds = model.get_audio_features(**audio_inputs)
     else:
         with torch.inference_mode():
-            embeds = model.get_audio_features(**inputs)
+            embeds = model.get_audio_features(**audio_inputs)
     return torch.nn.functional.normalize(embeds, dim=-1)
