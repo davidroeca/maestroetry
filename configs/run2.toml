@@ -1,0 +1,24 @@
+[train]
+clap_model_name = "laion/larger_clap_music"
+unfreeze_audio_layers = 2
+unfreeze_text_layers = 2
+encoder_learning_rate = 1e-5
+temperature_init = 0.07
+
+batch_size = 128
+learning_rate = 3e-4
+weight_decay = 0.01
+warmup_steps = 100
+num_epochs = 30
+eval_interval = 2
+early_stopping_patience = 5
+grad_accumulation_steps = 1
+max_grad_norm = 1.0
+num_workers = 6
+max_audio_seconds = 10.0
+
+data_dir = "data"
+cache_dir = "data/cache"
+log_dir = "runs"
+checkpoint_dir = "checkpoints"
+device = "auto"
