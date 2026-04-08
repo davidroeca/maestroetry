@@ -1,4 +1,4 @@
-"""Training loop for contrastive text-audio model."""
+"""Training loop for CLAP-based contrastive text-audio model."""
 
 from __future__ import annotations
 
@@ -19,16 +19,13 @@ from maestroetry.dataset import (
     cache_waveforms,
 )
 from maestroetry.encoders import (
-    _get_audio_encoder_layers,
-    is_mert,
-    load_audio_encoder,
-    load_text_encoder,
-    unfreeze_audio_top_layers,
-    unfreeze_text_top_layers,
+    load_clap_model,
+    unfreeze_clap_audio_top_layers,
+    unfreeze_clap_text_top_layers,
 )
 from maestroetry.evaluate import recall_at_k
 from maestroetry.loss import info_nce_loss
-from maestroetry.projection import ContrastiveModel, get_trainable_params
+from maestroetry.model import ContrastiveModel, get_trainable_params
 
 if TYPE_CHECKING:
     from torch import Tensor
@@ -38,6 +35,8 @@ if TYPE_CHECKING:
     from maestroetry.config import TrainConfig
 
 logger = logging.getLogger(__name__)
+
+_CLAP_SR = 48000
 
 
 def _eval_recall(
@@ -50,10 +49,9 @@ def _eval_recall(
     all_text: list[Tensor] = []
     all_audio: list[Tensor] = []
     with torch.inference_mode():
-        for spectrograms, texts in dataloader:
-            spectrograms = spectrograms.to(device, non_blocking=True)
-            with torch.amp.autocast(device_type=device, dtype=torch.bfloat16):
-                text_embeds, audio_embeds, _ = model(texts, spectrograms)
+        for waveforms, texts in dataloader:
+            waveforms = waveforms.to(device, non_blocking=True)
+            text_embeds, audio_embeds, _ = model(list(texts), waveforms)
             all_text.append(text_embeds.cpu())
             all_audio.append(audio_embeds.cpu())
     return recall_at_k(torch.cat(all_text), torch.cat(all_audio))
@@ -80,18 +78,7 @@ def _cosine_warmup_lambda(
     warmup_steps: int,
     total_steps: int,
 ) -> Callable[[int], float]:
-    """Return an LR multiplier function for warmup + cosine decay.
-
-    Applies as a multiplier to each optimizer param group's base LR,
-    so differential learning rates are correctly scaled throughout.
-
-    Args:
-        warmup_steps: Number of linear warmup steps.
-        total_steps: Total number of optimizer steps.
-
-    Returns:
-        A callable ``step -> float`` suitable for ``LambdaLR``.
-    """
+    """Return an LR multiplier function for warmup + cosine decay."""
 
     def lr_lambda(step: int) -> float:
         if step < warmup_steps:
@@ -110,70 +97,27 @@ def train_one_epoch(
     device: str = "cuda",
     grad_accumulation_steps: int = 1,
     max_grad_norm: float = 0.0,
-    hard_negative_weight: float = 1.0,
-    frozen_audio_layers: list[torch.nn.Module] | None = None,
-    frozen_text_layers: list[torch.nn.Module] | None = None,
 ) -> float:
-    """Run one training epoch.
-
-    For each batch: encode text and audio through the model,
-    compute symmetric InfoNCE loss, backpropagate through
-    trainable parameters, and step the optimizer every
-    ``grad_accumulation_steps`` batches.
-
-    Args:
-        model: The ContrastiveModel to train.
-        dataloader: Yields ``(spectrograms, texts)`` batches.
-        optimizer: AdamW optimizer over trainable params.
-        scheduler: Learning rate scheduler.
-        device: Device to run on.
-        grad_accumulation_steps: Number of batches to accumulate
-            gradients over before each optimizer step.
-        max_grad_norm: Maximum gradient norm for clipping. 0.0
-            disables clipping.
-        hard_negative_weight: Beta for hard negative scaling in
-            InfoNCE. 1.0 = standard loss.
-        frozen_audio_layers: AST layers that should stay in eval
-            mode even when the model is in train mode.
-        frozen_text_layers: Text encoder layers that should stay
-            in eval mode even when the model is in train mode.
-
-    Returns:
-        Mean loss over the epoch.
-    """
+    """Run one training epoch over the (waveform, text) dataloader."""
     model.train()
-    # Keep frozen encoder layers in eval mode to preserve
-    # BatchNorm/LayerNorm behavior when only top layers are unfrozen.
-    if frozen_audio_layers:
-        for layer in frozen_audio_layers:
-            layer.eval()
-    if frozen_text_layers:
-        for layer in frozen_text_layers:
-            layer.eval()
     losses: list[float] = []
     optimizer.zero_grad(set_to_none=True)
-    for i, (spectrograms, texts) in enumerate(dataloader, 1):
-        spectrograms = spectrograms.to(device, non_blocking=True)
-        with torch.amp.autocast(device_type=device, dtype=torch.bfloat16):
-            text_embeds, audio_embeds, temperature = model(texts, spectrograms)
-            loss = info_nce_loss(
-                text_embeds, audio_embeds, temperature, hard_negative_weight
-            )
-            loss = loss / grad_accumulation_steps
+    for i, (waveforms, texts) in enumerate(dataloader, 1):
+        waveforms = waveforms.to(device, non_blocking=True)
+        text_embeds, audio_embeds, temperature = model(list(texts), waveforms)
+        loss = info_nce_loss(text_embeds, audio_embeds, temperature)
+        loss = loss / grad_accumulation_steps
         loss.backward()
         if i % grad_accumulation_steps == 0:
             _clip_and_step(model, optimizer, scheduler, max_grad_norm)
         losses.append(loss.item() * grad_accumulation_steps)
         if i % 20 == 0:
             logger.info("  batch %d - loss: %.4f", i, losses[-1])
-    # Handle leftover batches that didn't complete a full
-    # accumulation cycle.
     if len(dataloader) % grad_accumulation_steps != 0:
         _clip_and_step(model, optimizer, scheduler, max_grad_norm)
     if losses:
         return sum(losses, start=0) / len(losses)
-    else:
-        return 0.0
+    return 0.0
 
 
 def _trainable_state_dict(model: ContrastiveModel) -> dict[str, torch.Tensor]:
@@ -191,11 +135,7 @@ def save_checkpoint(
     scheduler: torch.optim.lr_scheduler.LRScheduler,
     epoch: int,
 ) -> None:
-    """Save model checkpoint to disk.
-
-    Only trainable parameters (projection heads and temperature)
-    are saved; frozen encoder weights are excluded.
-    """
+    """Save trainable params + optimizer/scheduler state to disk."""
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
@@ -216,24 +156,8 @@ def load_checkpoint(
     *,
     model_weights_only: bool = False,
 ) -> int:
-    """Load checkpoint and return the next epoch to train.
-
-    Args:
-        path: Path to checkpoint file.
-        model: Model to load weights into.
-        optimizer: Optimizer to restore state into.
-        scheduler: Scheduler to restore state into.
-        model_weights_only: If True, load only model weights and
-            skip optimizer/scheduler state. Useful when resuming
-            with changed hyperparameters.
-
-    Returns:
-        The next epoch to train from.
-    """
+    """Load checkpoint and return the next epoch to train."""
     ckpt = torch.load(path, weights_only=False)
-    # Filter checkpoint to only load currently trainable params,
-    # so frozen encoder layers aren't overwritten with stale
-    # fine-tuned weights from a different unfreeze config.
     trainable_keys = {
         name for name, p in model.named_parameters() if p.requires_grad
     }
@@ -259,105 +183,38 @@ def train(
     *,
     weights_only: bool = False,
 ) -> None:
-    """Full training entrypoint.
-
-    Loads encoders, builds the ContrastiveModel, sets up data
-    loading, optimizer, scheduler, and TensorBoard writer, then
-    runs the training loop for ``config.num_epochs``.
-
-    Args:
-        config: Training configuration.
-        resume: Path to a checkpoint file to resume from.
-        weights_only: If True, load only model weights from the
-            checkpoint, ignoring optimizer/scheduler state.
-    """
+    """Full training entrypoint."""
     torch.set_float32_matmul_precision("high")
-    text_encoder, text_embed_dim = load_text_encoder(
-        name=config.text_encoder_name,
-        device=config.device,
-    )
-    audio_encoder, audio_extractor, audio_embed_dim = load_audio_encoder(
-        name=config.audio_encoder_name,
-        device=config.device,
-    )
-    finetune_audio = config.unfreeze_audio_layers > 0
-    finetune_text = config.unfreeze_text_layers > 0
-    model = ContrastiveModel(
-        text_encoder=text_encoder,
-        audio_encoder=audio_encoder,
-        audio_extractor=audio_extractor,
-        text_embed_dim=text_embed_dim,
-        audio_embed_dim=audio_embed_dim,
-        projection_hidden=config.projection_hidden_dim,
-        projection_out=config.embed_dim,
-        projection_depth=config.projection_depth,
-        projection_dropout=config.projection_dropout,
-        temperature_init=config.temperature_init,
-        finetune_audio=finetune_audio,
-        finetune_text=finetune_text,
-    )
+
+    clap, processor = load_clap_model(config.clap_model_name, config.device)
+    model = ContrastiveModel(clap, processor, config.temperature_init)
     model.to(device=config.device)
-    model.text_projection_head = torch.compile(model.text_projection_head)
-    model.audio_projection_head = torch.compile(model.audio_projection_head)
-
-    # Selectively unfreeze top audio encoder layers if configured.
-    frozen_audio_layers: list[torch.nn.Module] | None = None
-    if finetune_audio:
-        unfreeze_audio_top_layers(audio_encoder, config.unfreeze_audio_layers)
-        all_audio_layers = _get_audio_encoder_layers(audio_encoder)
-        total_layers = len(all_audio_layers)
-        frozen_audio_layers = list(
-            all_audio_layers[: total_layers - config.unfreeze_audio_layers]
-        )
-        logger.info(
-            "Unfreezing top %d audio encoder layers (of %d total)",
-            config.unfreeze_audio_layers,
-            total_layers,
-        )
-
-    frozen_text_layers: list[torch.nn.Module] | None = None
-    if finetune_text:
-        unfreeze_text_top_layers(text_encoder, config.unfreeze_text_layers)
-        text_layers = text_encoder[0].auto_model.encoder.layer
-        total_text = len(text_layers)
-        frozen_text_layers = list(
-            text_layers[: total_text - config.unfreeze_text_layers]
-        )
-        logger.info(
-            "Unfreezing top %d text layers (of %d total)",
-            config.unfreeze_text_layers,
-            total_text,
-        )
+    unfreeze_clap_audio_top_layers(clap, config.unfreeze_audio_layers)
+    unfreeze_clap_text_top_layers(clap, config.unfreeze_text_layers)
+    logger.info(
+        "Unfrozen CLAP layers: audio=%d, text=%d",
+        config.unfreeze_audio_layers,
+        config.unfreeze_text_layers,
+    )
 
     manifest_path = Path(config.data_dir) / "manifest.csv"
-    use_mert = is_mert(config.audio_encoder_name)
-    waveform_sr: int | None = None
-    if use_mert:
-        waveform_sr = config.sample_rate
-        audio_dir = Path(config.data_dir) / "audio"
-        cache_waveforms(
-            audio_dir=audio_dir,
-            cache_dir=config.cache_dir,
-            sr=config.sample_rate,
-            max_seconds=config.max_audio_seconds,
-        )
+    audio_dir = Path(config.data_dir) / "audio"
+    cache_waveforms(
+        audio_dir=audio_dir,
+        cache_dir=config.cache_dir,
+        sr=_CLAP_SR,
+        max_seconds=config.max_audio_seconds,
+    )
+
     train_dataset = AudioTextDataset(
         manifest_path=manifest_path,
         cache_dir=config.cache_dir,
         split="train",
-        augment=config.spec_augment and not use_mert,
-        waveform_sr=waveform_sr,
-        spec_aug_freq_masks=config.spec_aug_freq_masks,
-        spec_aug_freq_width=config.spec_aug_freq_width,
-        spec_aug_time_masks=config.spec_aug_time_masks,
-        spec_aug_time_width=config.spec_aug_time_width,
     )
     eval_dataset = AudioTextDataset(
         manifest_path=manifest_path,
         cache_dir=config.cache_dir,
         split="eval",
-        augment=False,
-        waveform_sr=waveform_sr,
     )
     use_cuda = config.device != "cpu"
     dataloader = DataLoader(
@@ -376,13 +233,12 @@ def train(
         num_workers=2,
         pin_memory=use_cuda,
     )
-    encoder_lr = (
-        config.encoder_learning_rate
-        if finetune_audio or finetune_text
-        else None
-    )
     optimizer = torch.optim.AdamW(
-        get_trainable_params(model, encoder_lr=encoder_lr),
+        get_trainable_params(
+            model,
+            encoder_lr=config.encoder_learning_rate,
+            main_lr=config.learning_rate,
+        ),
         lr=config.learning_rate,
         weight_decay=config.weight_decay,
     )
@@ -391,21 +247,13 @@ def train(
         steps_per_epoch / config.grad_accumulation_steps
     )
     total_optimizer_steps = optimizer_steps_per_epoch * config.num_epochs
-    if config.lr_schedule == "cosine":
-        scheduler = torch.optim.lr_scheduler.LambdaLR(
-            optimizer,
-            lr_lambda=_cosine_warmup_lambda(
-                warmup_steps=config.warmup_steps,
-                total_steps=total_optimizer_steps,
-            ),
-        )
-    else:
-        scheduler = torch.optim.lr_scheduler.LinearLR(
-            optimizer,
-            start_factor=1 / max(config.warmup_steps, 1),
-            end_factor=1.0,
-            total_iters=config.warmup_steps,
-        )
+    scheduler = torch.optim.lr_scheduler.LambdaLR(
+        optimizer,
+        lr_lambda=_cosine_warmup_lambda(
+            warmup_steps=config.warmup_steps,
+            total_steps=total_optimizer_steps,
+        ),
+    )
     start_epoch = 0
     if resume:
         start_epoch = load_checkpoint(
@@ -421,13 +269,11 @@ def train(
     writer = SummaryWriter(config.log_dir)
     effective_batch = config.batch_size * config.grad_accumulation_steps
     logger.info(
-        "Training: %d epochs, %d samples, batch size %d"
-        " (effective %d), schedule %s, device %s",
+        "Training: %d epochs, %d samples, batch size %d (effective %d), device %s",
         config.num_epochs,
         len(train_dataset),
         config.batch_size,
         effective_batch,
-        config.lr_schedule,
         config.device,
     )
     best_recall: float = -1.0
@@ -443,9 +289,6 @@ def train(
             device=config.device,
             grad_accumulation_steps=config.grad_accumulation_steps,
             max_grad_norm=config.max_grad_norm,
-            hard_negative_weight=config.hard_negative_weight,
-            frozen_audio_layers=frozen_audio_layers,
-            frozen_text_layers=frozen_text_layers,
         )
         logger.info("  mean loss: %.4f", loss)
         writer.add_scalar("loss/train", loss, epoch)

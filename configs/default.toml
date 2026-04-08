@@ -1,51 +1,23 @@
 [train]
-# Model architecture
-embed_dim = 256
-projection_hidden_dim = 512
-projection_depth = 3
-projection_dropout = 0.1
+clap_model_name = "laion/larger_clap_music"
+unfreeze_audio_layers = 2
+unfreeze_text_layers = 2
+encoder_learning_rate = 1e-6
 temperature_init = 0.07
 
-# Encoder names
-text_encoder_name = "all-MiniLM-L6-v2"
-audio_encoder_name = "MIT/ast-finetuned-audioset-10-10-0.4593"
-
-# Encoder fine-tuning
-unfreeze_audio_layers = 2
-unfreeze_text_layers = 0
-encoder_learning_rate = 1e-5
-max_grad_norm = 1.0
-hard_negative_weight = 1.0
-
-# LR schedule
-lr_schedule = "cosine"
-
-# Training
-batch_size = 100
+batch_size = 32
 learning_rate = 3e-4
 weight_decay = 0.01
 warmup_steps = 200
-num_epochs = 300
+num_epochs = 100
 eval_interval = 5
-grad_accumulation_steps = 4
-
-# SpecAugment
-spec_augment = true
-spec_aug_freq_masks = 2
-spec_aug_freq_width = 27
-spec_aug_time_masks = 2
-spec_aug_time_width = 100
-
-# Audio preprocessing
-n_mels = 128
-sample_rate = 16000
+early_stopping_patience = 10
+grad_accumulation_steps = 1
+max_grad_norm = 1.0
 max_audio_seconds = 10.0
 
-# Paths
 data_dir = "data"
 cache_dir = "data/cache"
 log_dir = "runs"
 checkpoint_dir = "checkpoints"
-
-# Device: "auto" picks cuda if available, else cpu
 device = "auto"

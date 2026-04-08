@@ -18,11 +18,11 @@ def _cmd_train(args: argparse.Namespace) -> None:
     train(config, resume=args.resume, weights_only=args.weights_only)
 
 
-def _cmd_cache_spectrograms(args: argparse.Namespace) -> None:
-    from maestroetry.dataset import cache_spectrograms
+def _cmd_cache_waveforms(args: argparse.Namespace) -> None:
+    from maestroetry.dataset import cache_waveforms
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    cache_spectrograms(args.audio_dir, args.cache_dir)
+    cache_waveforms(args.audio_dir, args.cache_dir)
 
 
 def _cmd_ingest(args: argparse.Namespace) -> None:
@@ -71,10 +71,10 @@ def main() -> None:
     )
     p_train.set_defaults(func=_cmd_train)
 
-    # cache-spectrograms
+    # cache-waveforms
     p_cache = subparsers.add_parser(
-        "cache-spectrograms",
-        help="Pre-compute mel spectrograms",
+        "cache-waveforms",
+        help="Pre-compute resampled 48 kHz waveforms",
     )
     p_cache.add_argument(
         "--audio-dir",
@@ -86,7 +86,7 @@ def main() -> None:
         default="data/cache",
         help="Output directory for cached tensors (default: data/cache)",
     )
-    p_cache.set_defaults(func=_cmd_cache_spectrograms)
+    p_cache.set_defaults(func=_cmd_cache_waveforms)
 
     # ingest
     p_ingest = subparsers.add_parser(

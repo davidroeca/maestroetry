@@ -21,49 +21,25 @@ from torch.utils.data import DataLoader
 from maestroetry.config import TrainConfig, load_config
 from maestroetry.dataset import AudioTextDataset, cache_waveforms
 from maestroetry.encoders import (
-    is_mert,
-    load_audio_encoder,
-    load_text_encoder,
-    unfreeze_audio_top_layers,
-    unfreeze_text_top_layers,
+    load_clap_model,
+    unfreeze_clap_audio_top_layers,
+    unfreeze_clap_text_top_layers,
 )
 from maestroetry.evaluate import recall_at_k
-from maestroetry.projection import ContrastiveModel
+from maestroetry.model import ContrastiveModel
 
 logging.basicConfig(level=logging.WARNING)
 
+_CLAP_SR = 48000
+
 
 def build_model(config: TrainConfig) -> ContrastiveModel:
-    """Build a ContrastiveModel from config (no torch.compile)."""
-    text_encoder, text_embed_dim = load_text_encoder(
-        name=config.text_encoder_name,
-        device=config.device,
-    )
-    audio_encoder, audio_extractor, audio_embed_dim = load_audio_encoder(
-        name=config.audio_encoder_name,
-        device=config.device,
-    )
-    finetune_audio = config.unfreeze_audio_layers > 0
-    finetune_text = config.unfreeze_text_layers > 0
-    model = ContrastiveModel(
-        text_encoder=text_encoder,
-        audio_encoder=audio_encoder,
-        audio_extractor=audio_extractor,
-        text_embed_dim=text_embed_dim,
-        audio_embed_dim=audio_embed_dim,
-        projection_hidden=config.projection_hidden_dim,
-        projection_out=config.embed_dim,
-        projection_depth=config.projection_depth,
-        projection_dropout=config.projection_dropout,
-        temperature_init=config.temperature_init,
-        finetune_audio=finetune_audio,
-        finetune_text=finetune_text,
-    )
+    """Build a ContrastiveModel from config."""
+    clap, processor = load_clap_model(config.clap_model_name, config.device)
+    model = ContrastiveModel(clap, processor, config.temperature_init)
     model.to(device=config.device)
-    if finetune_audio:
-        unfreeze_audio_top_layers(audio_encoder, config.unfreeze_audio_layers)
-    if finetune_text:
-        unfreeze_text_top_layers(text_encoder, config.unfreeze_text_layers)
+    unfreeze_clap_audio_top_layers(clap, config.unfreeze_audio_layers)
+    unfreeze_clap_text_top_layers(clap, config.unfreeze_text_layers)
     return model
 
 
@@ -92,12 +68,9 @@ def eval_checkpoint(
     all_text: list[torch.Tensor] = []
     all_audio: list[torch.Tensor] = []
     with torch.inference_mode():
-        for spectrograms, texts in eval_loader:
-            spectrograms = spectrograms.to(config.device, non_blocking=True)
-            with torch.amp.autocast(
-                device_type=config.device, dtype=torch.bfloat16
-            ):
-                text_embeds, audio_embeds, _ = model(texts, spectrograms)
+        for waveforms, texts in eval_loader:
+            waveforms = waveforms.to(config.device, non_blocking=True)
+            text_embeds, audio_embeds, _ = model(list(texts), waveforms)
             all_text.append(text_embeds.cpu())
             all_audio.append(audio_embeds.cpu())
     return recall_at_k(torch.cat(all_text), torch.cat(all_audio))
@@ -143,7 +116,6 @@ def main() -> None:
         ckpt_paths = [(root / r / "best.pt") for r in args.runs]
     else:
         ckpt_paths = sorted(root.glob("*/best.pt"))
-        # Also check for a top-level best.pt
         top_best = root / "best.pt"
         if top_best.exists():
             ckpt_paths.insert(0, top_best)
@@ -152,25 +124,18 @@ def main() -> None:
         print("No best.pt checkpoints found.")
         return
 
-    # Build model and eval dataset once
     model = build_model(config)
     manifest_path = Path(config.data_dir) / "manifest.csv"
-    use_mert = is_mert(config.audio_encoder_name)
-    waveform_sr: int | None = None
-    if use_mert:
-        waveform_sr = config.sample_rate
-        cache_waveforms(
-            audio_dir=Path(config.data_dir) / "audio",
-            cache_dir=config.cache_dir,
-            sr=config.sample_rate,
-            max_seconds=config.max_audio_seconds,
-        )
+    cache_waveforms(
+        audio_dir=Path(config.data_dir) / "audio",
+        cache_dir=config.cache_dir,
+        sr=_CLAP_SR,
+        max_seconds=config.max_audio_seconds,
+    )
     eval_dataset = AudioTextDataset(
         manifest_path=manifest_path,
         cache_dir=config.cache_dir,
         split=args.split,
-        augment=False,
-        waveform_sr=waveform_sr,
     )
     eval_loader = DataLoader(
         eval_dataset,
@@ -191,7 +156,6 @@ def main() -> None:
             print(f"{str(ckpt_path):<40} {'N/A':>6}  (not found)")
             continue
 
-        # Read epoch from checkpoint
         ckpt_data = torch.load(
             ckpt_path, weights_only=False, map_location="cpu"
         )

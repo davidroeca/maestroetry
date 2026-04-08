@@ -8,15 +8,16 @@ from maestroetry.config import TrainConfig, load_config
 
 
 def test_default_config_values():
-    """TrainConfig defaults match proposal hyperparameters."""
+    """TrainConfig defaults match the CLAP fine-tuning recipe."""
     cfg = TrainConfig()
-    assert cfg.embed_dim == 256
-    assert cfg.projection_hidden_dim == 512
+    assert cfg.clap_model_name == "laion/larger_clap_music"
+    assert cfg.unfreeze_audio_layers == 2
+    assert cfg.unfreeze_text_layers == 2
+    assert cfg.encoder_learning_rate == 1e-6
     assert cfg.temperature_init == 0.07
-    assert cfg.batch_size == 100
+    assert cfg.batch_size == 32
     assert cfg.learning_rate == 3e-4
-    assert cfg.n_mels == 128
-    assert cfg.sample_rate == 16000
+    assert cfg.max_audio_seconds == 10.0
 
 
 def test_config_is_frozen():
@@ -35,7 +36,7 @@ def test_load_config_from_toml():
 [train]
 batch_size = 128
 learning_rate = 1e-3
-embed_dim = 512
+unfreeze_audio_layers = 4
 """
     with tempfile.NamedTemporaryFile(suffix=".toml") as f:
         f.write(toml_content)
@@ -44,9 +45,9 @@ embed_dim = 512
 
     assert cfg.batch_size == 128
     assert cfg.learning_rate == 1e-3
-    assert cfg.embed_dim == 512
+    assert cfg.unfreeze_audio_layers == 4
     # Unspecified values keep defaults
-    assert cfg.n_mels == 128
+    assert cfg.temperature_init == 0.07
 
 
 def test_load_config_ignores_unknown_keys():
