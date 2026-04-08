@@ -42,7 +42,6 @@ _CLAP_SR = 48000
 def _eval_recall(
     model: ContrastiveModel,
     dataloader: DataLoader[tuple[Tensor, str]],
-    device: str,
 ) -> dict[str, float]:
     """Compute Recall@k metrics over a full dataloader pass."""
     model.eval()
@@ -50,7 +49,6 @@ def _eval_recall(
     all_audio: list[Tensor] = []
     with torch.inference_mode():
         for waveforms, texts in dataloader:
-            waveforms = waveforms.to(device, non_blocking=True)
             text_embeds, audio_embeds, _ = model(list(texts), waveforms)
             all_text.append(text_embeds.cpu())
             all_audio.append(audio_embeds.cpu())
@@ -94,7 +92,6 @@ def train_one_epoch(
     dataloader: DataLoader[tuple[Tensor, str]],
     optimizer: Optimizer,
     scheduler: LRScheduler,
-    device: str = "cuda",
     grad_accumulation_steps: int = 1,
     max_grad_norm: float = 0.0,
 ) -> float:
@@ -103,7 +100,6 @@ def train_one_epoch(
     losses: list[float] = []
     optimizer.zero_grad(set_to_none=True)
     for i, (waveforms, texts) in enumerate(dataloader, 1):
-        waveforms = waveforms.to(device, non_blocking=True)
         text_embeds, audio_embeds, temperature = model(list(texts), waveforms)
         loss = info_nce_loss(text_embeds, audio_embeds, temperature)
         loss = loss / grad_accumulation_steps
@@ -286,7 +282,6 @@ def train(
             dataloader=dataloader,
             optimizer=optimizer,
             scheduler=scheduler,
-            device=config.device,
             grad_accumulation_steps=config.grad_accumulation_steps,
             max_grad_norm=config.max_grad_norm,
         )
@@ -294,7 +289,7 @@ def train(
         writer.add_scalar("loss/train", loss, epoch)
         is_last = epoch == config.num_epochs - 1
         if is_last or (epoch + 1) % config.eval_interval == 0:
-            metrics = _eval_recall(model, eval_dataloader, config.device)
+            metrics = _eval_recall(model, eval_dataloader)
             metrics_str = "  ".join(f"{k}: {v:.4f}" for k, v in metrics.items())
             logger.info("  %s", metrics_str)
             for key, val in metrics.items():
