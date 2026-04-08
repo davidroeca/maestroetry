@@ -25,7 +25,7 @@ from maestroetry.encoders import (
     unfreeze_clap_audio_top_layers,
     unfreeze_clap_text_top_layers,
 )
-from maestroetry.evaluate import recall_at_k
+from maestroetry.evaluate import recall_at_k_by_track
 from maestroetry.model import ContrastiveModel
 
 logging.basicConfig(level=logging.WARNING)
@@ -58,6 +58,7 @@ def eval_checkpoint(
     config: TrainConfig,
     model: ContrastiveModel,
     eval_loader: DataLoader[tuple[torch.Tensor, str]],
+    track_ids: list[str],
 ) -> dict[str, float]:
     """Load a checkpoint into the model and compute recall metrics."""
     ckpt = torch.load(ckpt_path, weights_only=False, map_location=config.device)
@@ -73,7 +74,9 @@ def eval_checkpoint(
             text_embeds, audio_embeds, _ = model(list(texts), waveforms)
             all_text.append(text_embeds.cpu())
             all_audio.append(audio_embeds.cpu())
-    return recall_at_k(torch.cat(all_text), torch.cat(all_audio))
+    return recall_at_k_by_track(
+        torch.cat(all_text), torch.cat(all_audio), track_ids
+    )
 
 
 def main() -> None:
@@ -161,7 +164,9 @@ def main() -> None:
         )
         epoch = ckpt_data.get("epoch", -1)
 
-        metrics = eval_checkpoint(ckpt_path, config, model, eval_loader)
+        metrics = eval_checkpoint(
+            ckpt_path, config, model, eval_loader, eval_dataset.track_ids
+        )
         label = ckpt_path.parent.name if ckpt_path.parent != root else "(root)"
         print(
             f"{label:<40} {epoch + 1:>6}  "

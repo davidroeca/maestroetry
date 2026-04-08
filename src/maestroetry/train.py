@@ -24,7 +24,7 @@ from maestroetry.encoders import (
     unfreeze_clap_audio_top_layers,
     unfreeze_clap_text_top_layers,
 )
-from maestroetry.evaluate import recall_at_k
+from maestroetry.evaluate import recall_at_k_by_track
 from maestroetry.loss import info_nce_loss
 from maestroetry.model import ContrastiveModel, get_trainable_params
 
@@ -43,8 +43,14 @@ _CLAP_SR = 48000
 def _eval_recall(
     model: ContrastiveModel,
     dataloader: DataLoader,
+    track_ids: list[str],
 ) -> dict[str, float]:
-    """Compute Recall@k metrics over a full dataloader pass."""
+    """Compute track-deduped Recall@k metrics over a full dataloader pass.
+
+    The dataloader must iterate rows in the same order as ``track_ids``
+    (i.e. ``shuffle=False``), so that row i in the concatenated embedding
+    tensors corresponds to ``track_ids[i]``.
+    """
     model.eval()
     all_text: list[Tensor] = []
     all_audio: list[Tensor] = []
@@ -55,7 +61,9 @@ def _eval_recall(
             )
             all_text.append(text_embeds.cpu())
             all_audio.append(audio_embeds.cpu())
-    return recall_at_k(torch.cat(all_text), torch.cat(all_audio))
+    return recall_at_k_by_track(
+        torch.cat(all_text), torch.cat(all_audio), track_ids
+    )
 
 
 def _clip_and_step(
@@ -287,6 +295,16 @@ def train(
         effective_batch,
         config.device,
     )
+    baseline_metrics = _eval_recall(
+        model, eval_dataloader, eval_dataset.track_ids
+    )
+    baseline_str = "  ".join(
+        f"{k}: {v:.4f}" for k, v in baseline_metrics.items()
+    )
+    logger.info("Frozen CLAP zero-shot baseline: %s", baseline_str)
+    for key, val in baseline_metrics.items():
+        writer.add_scalar(f"metrics/{key}", val, -1)
+
     best_recall: float = -1.0
     evals_without_improvement: int = 0
     patience = config.early_stopping_patience
@@ -304,7 +322,9 @@ def train(
         writer.add_scalar("loss/train", loss, epoch)
         is_last = epoch == config.num_epochs - 1
         if is_last or (epoch + 1) % config.eval_interval == 0:
-            metrics = _eval_recall(model, eval_dataloader)
+            metrics = _eval_recall(
+                model, eval_dataloader, eval_dataset.track_ids
+            )
             metrics_str = "  ".join(f"{k}: {v:.4f}" for k, v in metrics.items())
             logger.info("  %s", metrics_str)
             for key, val in metrics.items():
