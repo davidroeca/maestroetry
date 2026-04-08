@@ -144,7 +144,7 @@ def encode_audio(
     # ClapProcessor's audio path expects numpy/list inputs.
     audio_list = [w.detach().cpu().float().numpy() for w in waveforms]
     inputs = processor(
-        audios=audio_list,
+        audio=audio_list,
         sampling_rate=48000,
         return_tensors="pt",
     )
