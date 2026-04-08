@@ -3,56 +3,66 @@ domain: research
 tier: full
 
 intent: |
-  Load and freeze pretrained text (all-MiniLM-L6-v2, 384-dim) and audio
-  (MIT/ast-finetuned-audioset-10-10-0.4593) encoders from HuggingFace.
-  Provides functions to extract embeddings from each modality with all
-  parameters frozen and models in eval mode.
+  Load and fine-tune CLAP (Contrastive Language-Audio Pretraining) from
+  HuggingFace using laion/larger_clap_music. CLAP provides both text and
+  audio encoders pre-aligned in a shared 512-dim embedding space via its
+  internal projection layers. Exposes functions to extract L2-normalized
+  text and audio features with optional top-layer unfreezing for domain
+  fine-tuning on LP-MusicCaps.
 
 behaviors:
-  - name: load_text_encoder
-    given: a sentence-transformers model name and target device
-    then: returns a frozen model in eval mode and its output embedding dimension (384)
-  - name: load_audio_encoder
-    given: an AST model name and target device
-    then: returns a frozen model in eval mode, its feature extractor, and output embedding dimension
-  - name: unfreeze_audio_top_layers
-    given: a frozen ASTModel and a layer count N
-    then: unfreezes the top N transformer layers (model.encoder.layer[-N:])
-      and the final layernorm, setting them to train mode; the rest stays
-      frozen in eval mode
+  - name: load_clap_model
+    given: a CLAP model name (e.g. laion/larger_clap_music) and target device
+    then: returns a (ClapModel, ClapProcessor) pair with all parameters
+      frozen in eval mode; ready for feature extraction or fine-tuning
+  - name: unfreeze_clap_audio_top_layers
+    given: a ClapModel and a layer count N
+    then: unfreezes the top N transformer layers of the audio encoder
+      and its final layer norm, setting those modules to train mode;
+      all other audio encoder parameters remain frozen in eval mode
+  - name: unfreeze_clap_text_top_layers
+    given: a ClapModel and a layer count N
+    then: unfreezes the top N transformer layers of the text encoder
+      and its final layer norm, setting those modules to train mode;
+      all other text encoder parameters remain frozen in eval mode
   - name: encode_text
-    given: a list of text strings and a frozen SentenceTransformer
-    then: returns an (N, 384) tensor of text embeddings
+    given: a list of text strings, a ClapModel, a ClapProcessor,
+      and an optional training flag
+    then: tokenizes via ClapProcessor, calls clap_model.get_text_features(),
+      returns an (N, 512) tensor of L2-normalized text embeddings;
+      when training=True, skips torch.inference_mode() so gradients flow
+      through any unfrozen text encoder layers
   - name: encode_audio
-    given: mel spectrograms, an AST model (frozen or partially unfrozen),
-      a feature extractor, and an optional training flag
-    then: returns an (N, embed_dim) tensor of audio embeddings; when
-      training=True, skips torch.inference_mode() so gradients can flow
-      through unfrozen layers
+    given: raw waveforms at 48kHz as an (N, samples) tensor, a ClapModel,
+      a ClapProcessor, and an optional training flag
+    then: pre-processes via ClapProcessor, calls clap_model.get_audio_features(),
+      returns an (N, 512) tensor of L2-normalized audio embeddings;
+      when training=True, skips torch.inference_mode() for gradient flow
 
 constraints:
-  - By default all encoder parameters are frozen (requires_grad=False);
-    optionally the top N audio encoder layers can be unfrozen for fine-tuning
+  - By default all CLAP parameters are frozen (requires_grad=False);
+    the top N layers of each tower can be unfrozen independently
   - Frozen layers must remain in eval() mode; unfrozen layers use train mode
-  - "Text encoder: all-MiniLM-L6-v2 producing 384-dim output"
-  - "Audio encoder: MIT/ast-finetuned-audioset-10-10-0.4593"
+  - "Audio encoder: HTSAT inside laion/larger_clap_music; input sample rate 48kHz"
+  - "Text encoder: RoBERTa-based inside laion/larger_clap_music"
+  - "Output embedding dimension: 512 (CLAP's internal projection output)"
 
 invariants:
-  - Frozen encoder weights are never modified; unfrozen layers are
-    trained with a separate (lower) learning rate
-  - Text encoder output shape is (batch_size, 384)
-  - Audio encoder output shape is (batch_size, audio_embed_dim)
+  - Frozen encoder weights are never modified during training
+  - Unfrozen layers train at encoder_learning_rate with gradient clipping
+  - Text and audio output shape is (batch_size, 512)
+  - Output embeddings are L2-normalized to unit length
 
 artifacts:
   code:
     - path: "src/maestroetry/encoders.py"
-      role: encoder loading and embedding extraction
+      role: CLAP model loading and embedding extraction
   tests:
     - path: "tests/test_encoders.py"
       role: encoder tests
 
 dependencies:
-  - $ref: "./projection.spec.yaml"
-    relationship: encoders feed into projection heads
+  - $ref: "./model.spec.yaml"
+    relationship: ClapModel loaded here is wrapped by ContrastiveModel
   - $ref: "./data-pipeline.spec.yaml"
-    relationship: audio encoder consumes spectrograms from data pipeline
+    relationship: audio encoder consumes 48kHz waveforms from data pipeline

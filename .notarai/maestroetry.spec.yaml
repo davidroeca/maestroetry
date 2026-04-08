@@ -42,12 +42,11 @@ behaviors:
       expansion
 
 constraints:
-  - Text encoder is always frozen; top 2 audio encoder layers are unfrozen
-    by default for fine-tuning at a differential learning rate
-  - Shared embedding space is 256-dimensional with L2 normalization
+  - CLAP (laion/larger_clap_music) is the encoder; top N layers of each tower
+    can be unfrozen for fine-tuning at a differential learning rate
+  - Shared embedding space is 512-dimensional (CLAP's native output) with L2 normalization
   - Must be trainable on a single consumer GPU or free Colab instance
-  - Projection heads and temperature are always trainable; unfrozen audio
-    encoder layers train at encoder_learning_rate with gradient clipping
+  - Only temperature and unfrozen CLAP layers are trainable; no external projection heads
 
 invariants:
   - Matched text-audio pairs have higher cosine similarity than unmatched pairs after training
@@ -55,6 +54,17 @@ invariants:
   - Frozen encoder weights are never modified during training
 
 decisions:
+  - date: "2026-04-07"
+    choice: Replace all encoders with CLAP (laion/larger_clap_music)
+    rationale: >
+      Runs 13-15 showed a ceiling at ~0.02-0.03 eval R@1 regardless of text
+      encoder strength (MiniLM vs bge-base), audio encoder (AST vs MERT), or
+      regularization. CLAP is already jointly trained on text-audio pairs
+      including music data, so its embeddings start in an aligned space. Fine-tuning
+      only the top layers on LP-MusicCaps avoids training audio-text alignment
+      from scratch, which appears to be the core bottleneck. Projection heads
+      are dropped entirely since CLAP's internal projections produce the shared
+      embedding space directly.
   - date: "2026-03-29"
     choice: Use all LP-MusicCaps caption variants by default (multi-caption ingestion)
     rationale: >
@@ -110,7 +120,7 @@ artifacts:
 
 subsystems:
   - $ref: "./encoders.spec.yaml"
-  - $ref: "./projection.spec.yaml"
+  - $ref: "./model.spec.yaml"
   - $ref: "./data-pipeline.spec.yaml"
   - $ref: "./training.spec.yaml"
   - $ref: "./web-demo.spec.yaml"

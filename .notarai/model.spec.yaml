@@ -1,0 +1,43 @@
+schema_version: "0.7"
+domain: research
+tier: full
+
+intent: |
+  ContrastiveModel wraps a ClapModel and a learnable temperature scalar.
+  CLAP provides its own 512-dim aligned projections internally, so no
+  external projection heads are needed. The model exposes a single forward
+  pass and a helper for gathering trainable parameter groups.
+
+behaviors:
+  - name: contrastive_forward
+    given: a list of text strings and a batch of 48kHz waveforms
+    then: calls encode_text and encode_audio on the wrapped ClapModel,
+      returns (text_embeds, audio_embeds, temperature) where both embed
+      tensors are (N, 512) and L2-normalized; gradients flow through
+      any unfrozen CLAP layers
+  - name: get_trainable_params
+    given: a ContrastiveModel and an optional encoder_lr
+    then: returns AdamW param groups; unfrozen CLAP layers at encoder_lr,
+      temperature parameter at the main learning_rate
+
+constraints:
+  - No external projection heads; CLAP's internal projection is the only one
+  - Embedding dimension is fixed at 512 (CLAP output)
+  - Temperature is the only parameter outside CLAP itself
+
+invariants:
+  - Output vectors have unit L2 norm
+  - "Effective temperature is always positive: stored as log_temperature
+    (nn.Parameter) computed as log_temperature.exp().clamp(0.01, 100.0)"
+
+artifacts:
+  code:
+    - path: "src/maestroetry/model.py"
+      role: ContrastiveModel wrapping ClapModel and temperature
+  tests:
+    - path: "tests/test_model.py"
+      role: ContrastiveModel tests
+
+dependencies:
+  - $ref: "./encoders.spec.yaml"
+    relationship: ContrastiveModel wraps the ClapModel from encoders

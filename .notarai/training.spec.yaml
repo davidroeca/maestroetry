@@ -3,68 +3,60 @@ domain: research
 tier: full
 
 intent: |
-  Complete training pipeline: symmetric InfoNCE loss computing text->audio
-  and audio->text cross-entropy averaged together, training loop with AdamW
-  optimizer and linear warmup, and Recall@k evaluation metrics. Training
-  configuration is managed via a frozen dataclass with TOML file loading.
+  Fine-tuning pipeline for CLAP on LP-MusicCaps + Jamendo data. Symmetric
+  InfoNCE loss on CLAP's 512-dim text and audio features, training loop with
+  AdamW and cosine LR schedule, differential learning rates for unfrozen CLAP
+  layers vs the temperature scalar, and Recall@k evaluation on held-out tracks.
 
 behaviors:
   - name: info_nce_loss
-    given: L2-normalized text and audio embeddings of shape (N, D) and a temperature scalar
+    given: L2-normalized text and audio embeddings of shape (N, 512) and a temperature scalar
     then: returns scalar loss equal to the mean of text->audio and audio->text cross-entropy
   - name: train_one_epoch
     given: a ContrastiveModel, dataloader, optimizer, and scheduler
     then: runs one epoch of training and returns the mean loss
   - name: train
     given: a TrainConfig with all hyperparameters and an optional checkpoint path to resume from
-    then: loads encoders, builds model, trains for num_epochs with TensorBoard logging
-      for loss and Recall@k metrics using separate train (split="train", with optional
-      SpecAugment) and eval (split="eval", no augmentation) dataloaders so that
-      metrics measure generalization on held-out tracks, not memorization; metrics
-      are evaluated every eval_interval epochs and always on the final epoch; saves
-      a single best.pt checkpoint (overwritten when R@1 improves); supports resuming
-      from a prior checkpoint; when unfreeze_audio_layers > 0, applies differential
-      learning rates (encoder_learning_rate for unfrozen AST layers, learning_rate
-      for projection heads) and gradient clipping via max_grad_norm
+    then: loads CLAP model, caches 48kHz waveforms if not already cached, builds
+      ContrastiveModel, trains for num_epochs with TensorBoard logging for loss
+      and Recall@k; uses separate train (split="train") and eval (split="eval",
+      no augmentation) dataloaders so metrics measure generalization on held-out
+      tracks; evaluates every eval_interval epochs and always on the final epoch;
+      saves a single best.pt checkpoint (overwritten when t2a_R@1 improves);
+      stops early when eval R@1 has not improved for early_stopping_patience
+      eval intervals; applies differential learning rates (encoder_learning_rate
+      for unfrozen CLAP layers, learning_rate for temperature) and gradient
+      clipping via max_grad_norm
   - name: save_checkpoint
     given: a model, optimizer, scheduler, epoch number, and output path
-    then: persists only trainable parameter state (projection heads and temperature),
-      optimizer state, and scheduler state with epoch number to disk; frozen encoder
-      weights are excluded to keep checkpoints small
+    then: persists trainable parameter state (unfrozen CLAP layers and temperature),
+      optimizer state, scheduler state, and epoch number; frozen parameters are
+      excluded to keep checkpoints small
   - name: load_checkpoint
     given: a checkpoint file path, model, optimizer, scheduler, and optional
       model_weights_only flag
-    then: filters checkpoint keys to only currently-trainable parameters (so
-      frozen encoder layers are not overwritten when unfreeze config changes),
-      then loads via strict=False; when model_weights_only is false, also
-      restores optimizer and scheduler state and returns the next epoch;
-      when true, skips optimizer/scheduler and returns epoch 0
+    then: filters checkpoint keys to only currently-trainable parameters (strict=False);
+      when model_weights_only is False, also restores optimizer/scheduler state
+      and returns the next epoch; when True, skips optimizer/scheduler and returns epoch 0
   - name: recall_at_k
     given: paired text and audio embeddings and k values
     then: returns dict with Recall@k metrics for both retrieval directions in [0.0, 1.0]
 
 constraints:
   - InfoNCE loss is symmetric (both directions averaged)
-  - "Optimizer: AdamW with lr=3e-4 and cosine warmup+decay schedule
-    (200 warmup steps, 300 epochs)"
-  - "Default: top 2 audio encoder layers are unfrozen and trained at
-    encoder_learning_rate=1e-5 with gradient clipping (max_grad_norm=1.0);
-    projection heads use the main learning_rate=3e-4"
-  - "Default batch size: 100, gradient accumulation steps: 4 (effective batch 400)"
-  - "SpecAugment enabled by default (2 freq masks width 27, 2 time masks width 100)"
-  - TensorBoard logging for loss and metrics
-  - Recall@k metrics are logged every eval_interval epochs (and always on the final epoch)
-  - "checkpoint_dir is configurable via TrainConfig and CLI override"
-  - "Config fields: projection_depth, projection_dropout,
-    unfreeze_audio_layers, encoder_learning_rate, max_grad_norm, lr_schedule,
-    spec_augment, spec_aug_freq_masks, spec_aug_freq_width,
-    spec_aug_time_masks, spec_aug_time_width"
+  - "Optimizer: AdamW; encoder_learning_rate for unfrozen CLAP layers (default 1e-6),
+    learning_rate for temperature (default 3e-4); cosine LR schedule with warmup"
+  - "Default: top 2 layers of each CLAP tower unfrozen; gradient clipping max_grad_norm=1.0"
+  - TensorBoard logging for loss and Recall@k metrics
+  - Recall@k metrics logged every eval_interval epochs and on the final epoch
+  - Early stopping: patience counted in eval intervals without improvement in t2a_R@1;
+    0 = disabled
+  - No SpecAugment (raw waveform input; CLAP handles its own audio preprocessing)
 
 invariants:
   - Random embeddings produce loss approximately equal to log(batch_size)
   - Recall@k values are in [0.0, 1.0]
-  - Training never modifies frozen encoder parameters; unfrozen layers
-    are trained with gradient clipping (max_grad_norm) for stability
+  - Frozen CLAP parameters are never modified during training
 
 artifacts:
   code:
@@ -90,8 +82,8 @@ artifacts:
 
 dependencies:
   - $ref: "./encoders.spec.yaml"
-    relationship: training uses encoders for forward pass
-  - $ref: "./projection.spec.yaml"
-    relationship: training optimizes projection head parameters
+    relationship: training uses CLAP encoders for the forward pass
+  - $ref: "./model.spec.yaml"
+    relationship: training optimizes ContrastiveModel parameters
   - $ref: "./data-pipeline.spec.yaml"
-    relationship: training loads data from the dataset
+    relationship: training loads 48kHz waveforms from the dataset

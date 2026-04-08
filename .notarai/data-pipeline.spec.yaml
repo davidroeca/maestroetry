@@ -3,32 +3,28 @@ domain: research
 tier: full
 
 intent: |
-  Audio-to-mel-spectrogram conversion, spectrogram caching as .pt tensor
-  files, and a PyTorch Dataset class for loading paired (spectrogram, text)
-  samples from a CSV manifest for training.
+  Raw waveform caching and a PyTorch Dataset class for loading paired
+  (waveform, text) samples from a CSV manifest for CLAP fine-tuning.
+  Waveforms are resampled to 48kHz and padded/truncated to a fixed
+  duration, then cached as .pt tensors to avoid repeated disk I/O.
 
 behaviors:
-  - name: audio_to_mel_spectrogram
-    given: a path to an audio file, n_mels, sample rate, and max duration
-    then: returns a 2D mel spectrogram tensor of shape (time_frames, n_mels),
-      padded/truncated to 1024 time frames and normalized for AST
-  - name: cache_spectrograms
+  - name: audio_to_waveform
+    given: a path to an audio file, a sample rate (48kHz), and max duration
+    then: loads via librosa, resamples, truncates or zero-pads to exactly
+      max_seconds of audio, returns a (max_samples,) 1-D float tensor
+  - name: cache_waveforms
     given: a directory of audio files and a cache directory
-    then: converts all audio files to mel spectrograms and saves as .pt files in the cache directory
-  - name: apply_spec_augment
-    given: a spectrogram tensor and frequency/time mask parameters
-    then: returns a cloned spectrogram with random frequency and time strips
-      zeroed out (SpecAugment masking); the original tensor is never modified
+    then: converts all audio files to fixed-length waveforms at 48kHz,
+      saves each as a .pt file with a sample-rate suffix (e.g. _wav48000);
+      skips files that are already cached
   - name: AudioTextDataset
     given: a CSV manifest with audio_path and text columns, a cache directory,
-      an optional split ("train", "eval", or None), and optional SpecAugment
-      parameters
-    then: returns a Dataset that yields (spectrogram_tensor, text_string) tuples
+      an optional split ("train", "eval", or None), and a waveform sample rate
+    then: returns a Dataset that yields (waveform_tensor, text_string) tuples
       and exposes a track_ids attribute for UniqueAudioBatchSampler; when split
-      is set, partitions by unique audio track (not by row) so all caption
-      variants for a track stay together; Jamendo tracks are always train-only;
-      when augment is enabled, applies SpecAugment masking to each spectrogram
-      on load (operating on clones, so cached files are unmodified)
+      is set, partitions by unique audio track so all caption variants for a
+      track stay together; Jamendo tracks are always train-only
   - name: UniqueAudioBatchSampler
     given: a list of per-row track IDs and a batch size
     then: yields batches where each audio track appears at most once;
@@ -36,34 +32,29 @@ behaviors:
       variants are seen over time
 
 constraints:
-  - Mel spectrograms use 128 mel bins by default
-  - Audio resampled to consistent sample rate before conversion
-  - Cached spectrograms stored as .pt tensor files
+  - Waveforms are resampled to 48kHz (CLAP's required sample rate)
+  - Fixed output length: pad or truncate to max_audio_seconds (default 10s)
+  - Cached waveforms stored as .pt tensor files with a _wav{sr} suffix
   - Dataset reads from a CSV manifest with audio_path and text columns
-  - Manifest includes a source column (lp_musiccaps or jamendo) to distinguish data origin
-  - "Train/eval split is by unique audio track, not by row, so all caption
-    variants for a track stay in the same partition (seed=42, 15% eval)"
-  - "Eval split is drawn only from lp_musiccaps tracks; Jamendo tracks are
-    always train-only because their programmatic captions are less useful
-    for measuring generalization"
-  - "Two-tier data strategy: LP-MusicCaps provides 4 LLM-generated caption variants
-    per track (~3K tracks, all variants used by default for ~12K+ pairs),
-    Jamendo provides programmatic captions from genre/instrument/mood tags
-    (~10.5K tracks); total ~22-25K training pairs"
+  - Manifest includes a source column (lp_musiccaps or jamendo)
+  - "Train/eval split is by unique audio track, not by row (seed=42, 15% eval)"
+  - "Eval split drawn only from lp_musiccaps; Jamendo tracks are train-only"
+  - "Two-tier data: LP-MusicCaps (~3K tracks, 4 caption variants each),
+    Jamendo (~10.5K tracks, programmatic captions); total ~22-25K training pairs"
 
 invariants:
-  - Spectrogram output is a 2D tensor (time_frames, n_mels) of shape (1024, 128)
-  - Each Dataset item returns a (spectrogram_tensor, text_string) tuple
-  - Cached spectrograms match their source audio content
+  - Each Dataset item returns a (waveform_tensor, text_string) tuple
+  - Waveform tensor shape is (max_samples,) where max_samples = sr * max_seconds
+  - Cached waveforms match their source audio content
 
 artifacts:
   code:
     - path: "src/maestroetry/dataset.py"
-      role: spectrogram conversion, caching, and dataset class
+      role: waveform conversion, caching, and dataset class
   data:
     - path: "data/**"
-      role: audio files and cached spectrograms
+      role: audio files and cached waveforms
 
 dependencies:
   - $ref: "./encoders.spec.yaml"
-    relationship: spectrograms are consumed by the audio encoder
+    relationship: waveforms are consumed by the CLAP audio encoder

@@ -8,15 +8,17 @@ intent: |
   CC-licensed tracks (Kevin MacLeod / Incompetech, CC BY 3.0) that are
   entirely outside the training and eval datasets, so the demo tests
   true generalization on unseen audio. Audio embeddings are pre-computed
-  offline by export_web_data.py. Only the text encoder
-  (Xenova/all-MiniLM-L6-v2, ~23 MB quantized via Transformers.js) and
-  the text projection head (pure TypeScript) run in-browser.
+  offline by export_web_data.py. The text encoder runs in-browser via
+  Transformers.js using a quantized CLAP model if available; if no
+  Transformers.js-compatible CLAP variant exists, a fixed query vocabulary
+  is pre-computed offline and free-text search is replaced by prompt chips.
 
 behaviors:
   - name: text_search
     given: a text query describing mood, instrumentation, or character
-    then: encodes via Transformers.js + TypeScript projection head, ranks
-      all 15 tracks by cosine similarity, displays results with scores
+    then: encodes via Transformers.js CLAP text encoder (preferred) or
+      selects the nearest pre-computed query embedding (fallback),
+      ranks all 15 tracks by cosine similarity, displays results with scores
   - name: similar_finder
     given: a selected track from the 15-track corpus
     then: ranks remaining tracks by embedding distance, displays results
@@ -27,65 +29,56 @@ behaviors:
   - name: model_loading
     given: the page loads for the first time
     then: shows a loading overlay with download progress while
-      Transformers.js fetches the quantized model from the CDN;
-      similar finder is usable immediately without waiting
+      Transformers.js fetches the quantized CLAP model from the CDN;
+      similar finder is usable immediately without waiting;
+      if running in pre-computed fallback mode, no model loading is needed
 
 constraints:
   - Text encoder runs in a Web Worker to keep the main thread responsive
-  - Only the text projection head runs in-browser; audio embeddings are
-    pre-computed by export_web_data.py and served as static JSON
-  - Output must be a fully static site with no server-side rendering at
-    runtime (prerender = true, adapter-static)
-  - TypeScript projection head must match Python output exactly (validated
-    by export_web_data.py before the data files are written)
+  - Audio embeddings are pre-computed by export_web_data.py and served as static JSON
+  - Output must be a fully static site with no server-side rendering at runtime
+  - Embedding dimension is 512 (CLAP native output); no projection head
+  - "Open question: whether a Transformers.js-compatible quantized CLAP model
+    exists (e.g. Xenova/larger_clap_music or equivalent); if not, fall back to
+    pre-computed prompt chip embeddings and remove free-text input"
 
 invariants:
-  - >-
-    Text projection head forward pass is identical to the Python model:
-    Linear -> ReLU -> Linear -> ReLU -> Linear -> L2 normalize
-  - All embeddings in the browser are L2-normalized; similarity is dot
-    product (equals cosine similarity for unit vectors)
-  - >-
-    The quantized Transformers.js model is Xenova/all-MiniLM-L6-v2,
-    the same architecture as the Python all-MiniLM-L6-v2 text encoder
+  - All embeddings are L2-normalized; similarity is dot product
+  - Audio and text embeddings are produced by the same CLAP model used for training
 
 decisions:
+  - date: "2026-04-07"
+    choice: Target CLAP text encoder in-browser; fall back to pre-computed chips
+    rationale: >
+      Switching to CLAP removes the MiniLM text encoder and TypeScript projection
+      head. The ideal replacement is a quantized CLAP text encoder via Transformers.js
+      to preserve free-text search. If no compatible quantized variant exists,
+      pre-computing embeddings for a fixed prompt chip vocabulary is the fallback.
+      This decision should be revisited once training with CLAP is validated and
+      Transformers.js model availability is confirmed.
   - date: "2026-03-30"
     choice: Pre-compute audio embeddings offline, run only text encoder in-browser
     rationale: >
-      The AST audio encoder (~90 MB) is too large for browser inference.
-      Pre-computing and serving audio embeddings as static JSON keeps the
-      page lightweight. Only the text projection head (~2 MB weights) and
-      the MiniLM text encoder (~23 MB quantized) need to run in-browser.
+      The CLAP audio encoder is too large for browser inference. Pre-computing
+      and serving audio embeddings as static JSON keeps the page lightweight.
   - date: "2026-03-30"
-    choice: Web Worker for Transformers.js, TypeScript for projection head
+    choice: Web Worker for Transformers.js
     rationale: >
-      Transformers.js model loading blocks the main thread for several
-      seconds. Running it in a Web Worker keeps the UI responsive. The
-      projection head is simple enough (3 linear layers) to implement
-      as pure TypeScript matrix math without any ML framework overhead.
-  - date: "2026-03-30"
-    choice: Victoriana design theme with Playfair Display and EB Garamond
-    rationale: >
-      Originally chosen to pair with a classical music corpus. The corpus
-      has since changed to genre-diverse CC-licensed tracks (Kevin MacLeod);
-      the theme may warrant revisiting in a future iteration.
+      Transformers.js model loading blocks the main thread for several seconds.
+      Running it in a Web Worker keeps the UI responsive.
   - date: "2026-03-31"
     choice: Demo corpus uses CC-licensed tracks entirely outside the training data
     rationale: >
-      Previous demo used classical recordings that were out-of-distribution
-      for the pop/electronic-heavy training data, and demoing with training
-      tracks would only show memorization. Using external CC tracks tests
-      real generalization on completely unseen audio.
+      Demoing with training tracks would only show memorization. Using external
+      CC tracks (Kevin MacLeod / Incompetech) tests real generalization on
+      completely unseen audio.
 
 artifacts:
   code:
     - path: "web/src/**/*.{ts,svelte}"
       role: SvelteKit SPA source
     - path: "web/src/lib/inference/worker.ts"
-      role: Web Worker for Transformers.js text encoding
-    - path: "web/src/lib/inference/projection.ts"
-      role: TypeScript projection head (must match Python model)
+      role: Web Worker for Transformers.js CLAP text encoding
     - path: "web/src/lib/inference/similarity.ts"
       role: dot product similarity scoring
     - path: "web/src/lib/stores/model.svelte.ts"
@@ -93,8 +86,8 @@ artifacts:
     - path: "web/src/lib/stores/tracks.ts"
       role: track data loading, search, and similar finder
     - path: "export_web_data.py"
-      role: offline export of projection weights and audio embeddings
+      role: offline export of audio embeddings (and prompt chip embeddings if fallback)
 
 dependencies:
-  - $ref: "./projection.spec.yaml"
-    relationship: web demo consumes text projection head weights exported from the trained model
+  - $ref: "./encoders.spec.yaml"
+    relationship: web demo uses the same CLAP model for text encoding as the training pipeline
