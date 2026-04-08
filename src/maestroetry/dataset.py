@@ -8,12 +8,19 @@ import math
 import random
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Callable
 
 import librosa
 import numpy as np
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset, Sampler
+from transformers import ClapProcessor
+
+from maestroetry.encoders import (
+    CLAP_AUDIO_INPUT_KEYS,
+    CLAP_TEXT_INPUT_KEYS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +195,54 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
         cache_location, text = self.pairs[idx]
         audio = torch.load(cache_location, weights_only=True)
         return audio, text
+
+
+ClapBatch = tuple[dict[str, Tensor], dict[str, Tensor]]
+
+
+def make_clap_collate_fn(
+    processor: ClapProcessor,
+    sampling_rate: int = _WAVEFORM_SR,
+) -> Callable[[list[tuple[Tensor, str]]], ClapBatch]:
+    """Build a collate_fn that runs the ClapProcessor in worker processes.
+
+    Mel-spectrogram extraction and text tokenization are the dominant
+    CPU cost per training step. Doing them in DataLoader workers lets
+    them run in parallel with the GPU forward/backward pass instead of
+    blocking the main process.
+
+    Args:
+        processor: A ClapProcessor (will be pickled to each worker).
+        sampling_rate: Audio sample rate to pass to the processor.
+
+    Returns:
+        Callable suitable for ``DataLoader(collate_fn=...)`` that
+        returns ``(audio_inputs, text_inputs)`` dicts of tensors ready
+        to feed to ``ClapModel.get_*_features``.
+    """
+
+    def collate(batch: list[tuple[Tensor, str]]) -> ClapBatch:
+        waveforms = [w.float().numpy() for w, _ in batch]
+        texts = [t for _, t in batch]
+        audio_raw = processor(
+            audio=waveforms,
+            sampling_rate=sampling_rate,
+            return_tensors="pt",
+        )
+        text_raw = processor(
+            text=texts,
+            return_tensors="pt",
+            padding=True,
+        )
+        audio_inputs = {
+            k: v for k, v in audio_raw.items() if k in CLAP_AUDIO_INPUT_KEYS
+        }
+        text_inputs = {
+            k: v for k, v in text_raw.items() if k in CLAP_TEXT_INPUT_KEYS
+        }
+        return audio_inputs, text_inputs
+
+    return collate
 
 
 class UniqueAudioBatchSampler(Sampler[list[int]]):

@@ -88,6 +88,71 @@ def unfreeze_clap_text_top_layers(model: ClapModel, n: int) -> None:
         param.requires_grad = True
 
 
+CLAP_TEXT_INPUT_KEYS = frozenset({"input_ids", "attention_mask", "position_ids"})
+CLAP_AUDIO_INPUT_KEYS = frozenset(
+    {"input_features", "is_longer", "attention_mask"}
+)
+
+
+def encode_text_from_inputs(
+    text_inputs: dict[str, Tensor],
+    model: ClapModel,
+    *,
+    training: bool = False,
+) -> Tensor:
+    """Encode pre-processed text inputs into 512-dim CLAP embeddings.
+
+    Args:
+        text_inputs: Dict of tensors produced by ``ClapProcessor``
+            (``input_ids``, ``attention_mask``, optionally
+            ``position_ids``).
+        model: A CLAP model.
+        training: If True, run with gradient tracking.
+
+    Returns:
+        ``(N, 512)`` L2-normalized text embeddings.
+    """
+    device = next(model.parameters()).device
+    moved = {
+        k: v.to(device, non_blocking=True) for k, v in text_inputs.items()
+    }
+    if training:
+        outputs = model.get_text_features(**moved)
+    else:
+        with torch.inference_mode():
+            outputs = model.get_text_features(**moved)
+    return torch.nn.functional.normalize(outputs.pooler_output, dim=-1)
+
+
+def encode_audio_from_inputs(
+    audio_inputs: dict[str, Tensor],
+    model: ClapModel,
+    *,
+    training: bool = False,
+) -> Tensor:
+    """Encode pre-processed audio inputs into 512-dim CLAP embeddings.
+
+    Args:
+        audio_inputs: Dict of tensors produced by ``ClapProcessor``
+            (``input_features``, ``is_longer``, ``attention_mask``).
+        model: A CLAP model.
+        training: If True, run with gradient tracking.
+
+    Returns:
+        ``(N, 512)`` L2-normalized audio embeddings.
+    """
+    device = next(model.parameters()).device
+    moved = {
+        k: v.to(device, non_blocking=True) for k, v in audio_inputs.items()
+    }
+    if training:
+        outputs = model.get_audio_features(**moved)
+    else:
+        with torch.inference_mode():
+            outputs = model.get_audio_features(**moved)
+    return torch.nn.functional.normalize(outputs.pooler_output, dim=-1)
+
+
 def encode_text(
     texts: list[str],
     model: ClapModel,
@@ -108,17 +173,10 @@ def encode_text(
         ``(N, 512)`` L2-normalized text embeddings.
     """
     inputs = processor(text=texts, return_tensors="pt", padding=True)
-    device = next(model.parameters()).device
-    text_keys = {"input_ids", "attention_mask", "position_ids"}
     text_inputs = {
-        k: v.to(device) for k, v in inputs.items() if k in text_keys
+        k: v for k, v in inputs.items() if k in CLAP_TEXT_INPUT_KEYS
     }
-    if training:
-        outputs = model.get_text_features(**text_inputs)
-    else:
-        with torch.inference_mode():
-            outputs = model.get_text_features(**text_inputs)
-    return torch.nn.functional.normalize(outputs.pooler_output, dim=-1)
+    return encode_text_from_inputs(text_inputs, model, training=training)
 
 
 def encode_audio(
@@ -140,7 +198,6 @@ def encode_audio(
     Returns:
         ``(N, 512)`` L2-normalized audio embeddings.
     """
-    device = next(model.parameters()).device
     # ClapProcessor's audio path expects numpy/list inputs.
     audio_list = [w.detach().cpu().float().numpy() for w in waveforms]
     inputs = processor(
@@ -148,13 +205,7 @@ def encode_audio(
         sampling_rate=48000,
         return_tensors="pt",
     )
-    audio_keys = {"input_features", "is_longer", "attention_mask"}
     audio_inputs = {
-        k: v.to(device) for k, v in inputs.items() if k in audio_keys
+        k: v for k, v in inputs.items() if k in CLAP_AUDIO_INPUT_KEYS
     }
-    if training:
-        outputs = model.get_audio_features(**audio_inputs)
-    else:
-        with torch.inference_mode():
-            outputs = model.get_audio_features(**audio_inputs)
-    return torch.nn.functional.normalize(outputs.pooler_output, dim=-1)
+    return encode_audio_from_inputs(audio_inputs, model, training=training)

@@ -14,6 +14,7 @@ eval_interval = 5
 early_stopping_patience = 10
 grad_accumulation_steps = 1
 max_grad_norm = 1.0
+num_workers = 6
 max_audio_seconds = 10.0
 
 data_dir = "data"

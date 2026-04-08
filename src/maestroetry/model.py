@@ -59,6 +59,30 @@ class ContrastiveModel(nn.Module):
         temperature = self.log_temperature.exp().clamp(min=0.01, max=100.0)
         return text_embeds, audio_embeds, temperature
 
+    def forward_preprocessed(
+        self,
+        text_inputs: dict[str, Tensor],
+        audio_inputs: dict[str, Tensor],
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        """Encode pre-processed inputs from a DataLoader collate_fn.
+
+        Used by the training loop, which runs the ClapProcessor in
+        worker processes so the GPU forward/backward pass can overlap
+        with mel-spectrogram extraction.
+        """
+        text_embeds = encoders.encode_text_from_inputs(
+            text_inputs,
+            self.clap,
+            training=self.training,
+        )
+        audio_embeds = encoders.encode_audio_from_inputs(
+            audio_inputs,
+            self.clap,
+            training=self.training,
+        )
+        temperature = self.log_temperature.exp().clamp(min=0.01, max=100.0)
+        return text_embeds, audio_embeds, temperature
+
 
 def get_trainable_params(
     model: ContrastiveModel,

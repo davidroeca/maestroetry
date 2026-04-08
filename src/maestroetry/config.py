@@ -35,6 +35,7 @@ class TrainConfig:
     early_stopping_patience: int = 10
     grad_accumulation_steps: int = 1
     max_grad_norm: float = 1.0
+    num_workers: int = 6
 
     # Audio preprocessing
     max_audio_seconds: float = 10.0

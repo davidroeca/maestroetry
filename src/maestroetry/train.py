@@ -17,6 +17,7 @@ from maestroetry.dataset import (
     AudioTextDataset,
     UniqueAudioBatchSampler,
     cache_waveforms,
+    make_clap_collate_fn,
 )
 from maestroetry.encoders import (
     load_clap_model,
@@ -41,15 +42,17 @@ _CLAP_SR = 48000
 
 def _eval_recall(
     model: ContrastiveModel,
-    dataloader: DataLoader[tuple[Tensor, str]],
+    dataloader: DataLoader,
 ) -> dict[str, float]:
     """Compute Recall@k metrics over a full dataloader pass."""
     model.eval()
     all_text: list[Tensor] = []
     all_audio: list[Tensor] = []
     with torch.inference_mode():
-        for waveforms, texts in dataloader:
-            text_embeds, audio_embeds, _ = model(list(texts), waveforms)
+        for audio_inputs, text_inputs in dataloader:
+            text_embeds, audio_embeds, _ = model.forward_preprocessed(
+                text_inputs, audio_inputs
+            )
             all_text.append(text_embeds.cpu())
             all_audio.append(audio_embeds.cpu())
     return recall_at_k(torch.cat(all_text), torch.cat(all_audio))
@@ -89,18 +92,20 @@ def _cosine_warmup_lambda(
 
 def train_one_epoch(
     model: ContrastiveModel,
-    dataloader: DataLoader[tuple[Tensor, str]],
+    dataloader: DataLoader,
     optimizer: Optimizer,
     scheduler: LRScheduler,
     grad_accumulation_steps: int = 1,
     max_grad_norm: float = 0.0,
 ) -> float:
-    """Run one training epoch over the (waveform, text) dataloader."""
+    """Run one training epoch over the preprocessed-batch dataloader."""
     model.train()
     losses: list[float] = []
     optimizer.zero_grad(set_to_none=True)
-    for i, (waveforms, texts) in enumerate(dataloader, 1):
-        text_embeds, audio_embeds, temperature = model(list(texts), waveforms)
+    for i, (audio_inputs, text_inputs) in enumerate(dataloader, 1):
+        text_embeds, audio_embeds, temperature = model.forward_preprocessed(
+            text_inputs, audio_inputs
+        )
         loss = info_nce_loss(text_embeds, audio_embeds, temperature)
         loss = loss / grad_accumulation_steps
         loss.backward()
@@ -213,21 +218,27 @@ def train(
         split="eval",
     )
     use_cuda = config.device != "cpu"
+    collate_fn = make_clap_collate_fn(processor)
+    persistent = config.num_workers > 0
     dataloader = DataLoader(
         train_dataset,
         batch_sampler=UniqueAudioBatchSampler(
             train_dataset.track_ids,
             batch_size=config.batch_size,
         ),
-        num_workers=2,
+        num_workers=config.num_workers,
         pin_memory=use_cuda,
+        collate_fn=collate_fn,
+        persistent_workers=persistent,
     )
     eval_dataloader = DataLoader(
         eval_dataset,
         batch_size=config.batch_size,
         shuffle=False,
-        num_workers=2,
+        num_workers=config.num_workers,
         pin_memory=use_cuda,
+        collate_fn=collate_fn,
+        persistent_workers=persistent,
     )
     optimizer = torch.optim.AdamW(
         get_trainable_params(
