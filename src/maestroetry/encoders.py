@@ -114,11 +114,11 @@ def encode_text(
         k: v.to(device) for k, v in inputs.items() if k in text_keys
     }
     if training:
-        embeds = model.get_text_features(**text_inputs)
+        outputs = model.get_text_features(**text_inputs)
     else:
         with torch.inference_mode():
-            embeds = model.get_text_features(**text_inputs)
-    return torch.nn.functional.normalize(embeds, dim=-1)
+            outputs = model.get_text_features(**text_inputs)
+    return torch.nn.functional.normalize(outputs.pooler_output, dim=-1)
 
 
 def encode_audio(
@@ -153,8 +153,8 @@ def encode_audio(
         k: v.to(device) for k, v in inputs.items() if k in audio_keys
     }
     if training:
-        embeds = model.get_audio_features(**audio_inputs)
+        outputs = model.get_audio_features(**audio_inputs)
     else:
         with torch.inference_mode():
-            embeds = model.get_audio_features(**audio_inputs)
-    return torch.nn.functional.normalize(embeds, dim=-1)
+            outputs = model.get_audio_features(**audio_inputs)
+    return torch.nn.functional.normalize(outputs.pooler_output, dim=-1)
