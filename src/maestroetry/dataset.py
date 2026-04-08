@@ -74,6 +74,16 @@ def _waveform_cache_suffix(sr: int) -> str:
     return f"_wav{sr}"
 
 
+def _clap_features_cache_suffix(model_name: str) -> str:
+    """Return a cache filename suffix scoped to a CLAP model identity.
+
+    Different CLAP checkpoints emit different mel features, so the
+    cached dicts are not interchangeable across models.
+    """
+    safe = model_name.replace("/", "_").replace("\\", "_")
+    return f"_clapfeat_{safe}"
+
+
 def cache_waveforms(
     audio_dir: str | Path,
     cache_dir: str | Path,
@@ -109,6 +119,64 @@ def cache_waveforms(
         torch.save(waveform, dest)
         if i % 500 == 0:
             logger.info("[%d] waveforms cached...", i)
+
+
+def cache_clap_features(
+    audio_dir: str | Path,
+    cache_dir: str | Path,
+    processor: ClapProcessor,
+    model_name: str,
+    sr: int = 48000,
+    max_seconds: float = 10.0,
+) -> None:
+    """Pre-compute and cache CLAP processor outputs for all audio files.
+
+    Mel-spectrogram extraction is by far the most expensive CPU step
+    per training batch. Caching the processor's output dict per audio
+    file lets DataLoader workers do nothing more than ``torch.load``,
+    keeping the GPU fed.
+
+    Args:
+        audio_dir: Directory containing audio files (recursively scanned).
+        cache_dir: Directory to write cached ``.pt`` dicts.
+        processor: A ClapProcessor matching ``model_name``.
+        model_name: HuggingFace ID for the CLAP model; used to scope
+            the cache filename so multiple models can coexist.
+        sr: Target sample rate (48000 for CLAP).
+        max_seconds: Fixed input duration in seconds.
+    """
+    cache_dir_path = Path(cache_dir)
+    cache_dir_path.mkdir(parents=True, exist_ok=True)
+    iter_audio_paths = (
+        f
+        for f in Path(audio_dir).rglob("*")
+        if f.is_file() and f.suffix in AUDIO_EXTENSIONS
+    )
+    suffix = _clap_features_cache_suffix(model_name)
+    logger.info(
+        "Caching CLAP features (%s) from %s ...", model_name, audio_dir
+    )
+    for i, audio_path in enumerate(iter_audio_paths, 1):
+        dest = audio_path_to_cache_location(
+            audio_path=audio_path,
+            cache_dir=cache_dir,
+            suffix=suffix,
+        )
+        if dest.exists():
+            continue
+        waveform = audio_to_waveform(audio_path, sr=sr, max_seconds=max_seconds)
+        wav_np = waveform.float().numpy()
+        raw = processor(
+            audio=[wav_np],
+            sampling_rate=sr,
+            return_tensors="pt",
+        )
+        cached: dict[str, Tensor] = {
+            k: v for k, v in raw.items() if k in CLAP_AUDIO_INPUT_KEYS
+        }
+        torch.save(cached, dest)
+        if i % 500 == 0:
+            logger.info("[%d] CLAP feature dicts cached...", i)
 
 
 _SPLIT_SEED = 42
@@ -198,22 +266,74 @@ class AudioTextDataset(Dataset[tuple[Tensor, str]]):
 
 
 ClapBatch = tuple[dict[str, Tensor], dict[str, Tensor]]
+ClapFeaturesItem = tuple[dict[str, Tensor], str]
+
+
+class ClapFeaturesTextDataset(Dataset[ClapFeaturesItem]):
+    """Dataset of (cached CLAP audio inputs, text) pairs.
+
+    Reads a CSV manifest with ``audio_path`` and ``text`` columns and
+    loads the matching cached CLAP feature dict produced by
+    :func:`cache_clap_features`. Eliminates per-step mel-spectrogram
+    extraction so DataLoader workers do nothing but ``torch.load``.
+
+    Args:
+        manifest_path: Path to CSV file with ``audio_path`` and
+            ``text`` columns.
+        cache_dir: Directory containing cached ``.pt`` feature dicts.
+        model_name: HuggingFace CLAP model ID; must match the one
+            passed to ``cache_clap_features``.
+        split: ``"train"``, ``"eval"``, or ``None``.
+    """
+
+    def __init__(
+        self,
+        manifest_path: str | Path,
+        cache_dir: str | Path,
+        model_name: str,
+        split: str | None = None,
+    ) -> None:
+        with Path(manifest_path).open(mode="r", encoding="utf8") as manifest_f:
+            reader = csv.DictReader(manifest_f)
+            rows = list(reader)
+        if split is not None:
+            rows = _apply_split(rows, split)
+        suffix = _clap_features_cache_suffix(model_name)
+        self.pairs: list[tuple[Path, str]] = [
+            (
+                audio_path_to_cache_location(
+                    audio_path=row["audio_path"],
+                    cache_dir=cache_dir,
+                    suffix=suffix,
+                ),
+                row["text"],
+            )
+            for row in rows
+        ]
+        self.track_ids: list[str] = [row["audio_path"] for row in rows]
+
+    def __len__(self) -> int:
+        return len(self.pairs)
+
+    def __getitem__(self, idx) -> ClapFeaturesItem:  # type: ignore[override]
+        cache_location, text = self.pairs[idx]
+        audio_inputs: dict[str, Tensor] = torch.load(
+            cache_location, weights_only=True
+        )
+        return audio_inputs, text
 
 
 def make_clap_collate_fn(
     processor: ClapProcessor,
-    sampling_rate: int = _WAVEFORM_SR,
-) -> Callable[[list[tuple[Tensor, str]]], ClapBatch]:
-    """Build a collate_fn that runs the ClapProcessor in worker processes.
+) -> Callable[[list[ClapFeaturesItem]], ClapBatch]:
+    """Build a collate_fn for cached CLAP feature dicts + raw text.
 
-    Mel-spectrogram extraction and text tokenization are the dominant
-    CPU cost per training step. Doing them in DataLoader workers lets
-    them run in parallel with the GPU forward/backward pass instead of
-    blocking the main process.
+    Audio-side work is already done by :func:`cache_clap_features`, so
+    the collate_fn only stacks the cached dicts and tokenizes the text
+    batch (cheap; runs in worker processes).
 
     Args:
-        processor: A ClapProcessor (will be pickled to each worker).
-        sampling_rate: Audio sample rate to pass to the processor.
+        processor: A ClapProcessor used for text tokenization.
 
     Returns:
         Callable suitable for ``DataLoader(collate_fn=...)`` that
@@ -221,22 +341,18 @@ def make_clap_collate_fn(
         to feed to ``ClapModel.get_*_features``.
     """
 
-    def collate(batch: list[tuple[Tensor, str]]) -> ClapBatch:
-        waveforms = [w.float().numpy() for w, _ in batch]
+    def collate(batch: list[ClapFeaturesItem]) -> ClapBatch:
+        audio_dicts = [d for d, _ in batch]
         texts = [t for _, t in batch]
-        audio_raw = processor(
-            audio=waveforms,
-            sampling_rate=sampling_rate,
-            return_tensors="pt",
-        )
+        keys = audio_dicts[0].keys()
+        audio_inputs: dict[str, Tensor] = {
+            k: torch.cat([d[k] for d in audio_dicts], dim=0) for k in keys
+        }
         text_raw = processor(
             text=texts,
             return_tensors="pt",
             padding=True,
         )
-        audio_inputs = {
-            k: v for k, v in audio_raw.items() if k in CLAP_AUDIO_INPUT_KEYS
-        }
         text_inputs = {
             k: v for k, v in text_raw.items() if k in CLAP_TEXT_INPUT_KEYS
         }

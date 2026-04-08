@@ -14,9 +14,9 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from maestroetry.dataset import (
-    AudioTextDataset,
+    ClapFeaturesTextDataset,
     UniqueAudioBatchSampler,
-    cache_waveforms,
+    cache_clap_features,
     make_clap_collate_fn,
 )
 from maestroetry.encoders import (
@@ -200,21 +200,25 @@ def train(
 
     manifest_path = Path(config.data_dir) / "manifest.csv"
     audio_dir = Path(config.data_dir) / "audio"
-    cache_waveforms(
+    cache_clap_features(
         audio_dir=audio_dir,
         cache_dir=config.cache_dir,
+        processor=processor,
+        model_name=config.clap_model_name,
         sr=_CLAP_SR,
         max_seconds=config.max_audio_seconds,
     )
 
-    train_dataset = AudioTextDataset(
+    train_dataset = ClapFeaturesTextDataset(
         manifest_path=manifest_path,
         cache_dir=config.cache_dir,
+        model_name=config.clap_model_name,
         split="train",
     )
-    eval_dataset = AudioTextDataset(
+    eval_dataset = ClapFeaturesTextDataset(
         manifest_path=manifest_path,
         cache_dir=config.cache_dir,
+        model_name=config.clap_model_name,
         split="eval",
     )
     use_cuda = config.device != "cpu"
